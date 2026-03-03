@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>YouTube Quiz Tutor – Options</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+      body {
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        margin: 0;
+        padding: 24px;
+        background: #0f172a;
+        color: #e5e7eb;
+      }
+      .container {
+        max-width: 720px;
+        margin: 0 auto;
+        background: #020617;
+        border-radius: 12px;
+        padding: 24px 28px;
+        box-shadow: 0 18px 40px rgba(15, 23, 42, 0.8);
+        border: 1px solid rgba(148, 163, 184, 0.3);
+      }
+      h1 {
+        margin-top: 0;
+        margin-bottom: 4px;
+        font-size: 1.6rem;
+      }
+      p.subtitle {
+        margin-top: 0;
+        font-size: 0.9rem;
+        color: #9ca3af;
+      }
+      .section {
+        margin-top: 20px;
+        padding-top: 16px;
+        border-top: 1px solid rgba(148, 163, 184, 0.3);
+      }
+      label {
+        display: block;
+        font-weight: 500;
+        margin-bottom: 6px;
+      }
+      .field-description {
+        font-size: 0.8rem;
+        color: #9ca3af;
+        margin-bottom: 8px;
+      }
+      input[type="text"],
+      input[type="number"],
+      input[type="password"],
+      select {
+        width: 100%;
+        padding: 8px 10px;
+        border-radius: 8px;
+        border: 1px solid rgba(148, 163, 184, 0.5);
+        background: #020617;
+        color: #e5e7eb;
+        box-sizing: border-box;
+      }
+      input:focus,
+      select:focus {
+        outline: 2px solid #38bdf8;
+        outline-offset: 1px;
+        border-color: transparent;
+      }
+      .inline {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+      }
+      .inline input[type="number"] {
+        width: 80px;
+      }
+      .checkbox-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .checkbox-row input[type="checkbox"] {
+        width: 16px;
+        height: 16px;
+      }
+      .actions {
+        margin-top: 24px;
+        display: flex;
+        gap: 12px;
+        align-items: center;
+      }
+      button {
+        appearance: none;
+        border: none;
+        border-radius: 999px;
+        padding: 8px 18px;
+        background: linear-gradient(135deg, #38bdf8, #a855f7);
+        color: white;
+        font-weight: 600;
+        cursor: pointer;
+        box-shadow: 0 10px 25px rgba(56, 189, 248, 0.35);
+      }
+      button:disabled {
+        opacity: 0.5;
+        cursor: default;
+        box-shadow: none;
+      }
+      .status {
+        font-size: 0.85rem;
+        color: #9ca3af;
+      }
+      .status.ok {
+        color: #4ade80;
+      }
+      .status.error {
+        color: #f97373;
+      }
+      .hint {
+        font-size: 0.75rem;
+        color: #6b7280;
+        margin-top: 4px;
+      }
+      code {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New",
+          monospace;
+        font-size: 0.8rem;
+        background: rgba(15, 23, 42, 0.8);
+        padding: 1px 4px;
+        border-radius: 4px;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="container">
+      <h1>YouTube Quiz Tutor</h1>
+      <p class="subtitle">Configure how the extension connects to OpenAI and when quizzes appear.</p>
+
+      <section class="section">
+        <h2>AI settings</h2>
+        <div>
+          <label for="openai-api-key">OpenAI API key</label>
+          <p class="field-description">
+            Stored locally via <code>chrome.storage</code>. The key is only used to call the OpenAI API from your
+            browser.
+          </p>
+          <input id="openai-api-key" type="password" autocomplete="off" placeholder="sk-..." />
+          <div class="hint">
+            You can create and manage API keys in your OpenAI account dashboard.
+          </div>
+        </div>
+
+        <div style="margin-top: 14px">
+          <label for="openai-model">Model</label>
+          <p class="field-description">
+            Any chat-completions-compatible model name (for example, <code>gpt-4.1-mini</code>).
+          </p>
+          <input id="openai-model" type="text" placeholder="gpt-4.1-mini" />
+        </div>
+      </section>
+
+      <section class="section">
+        <h2>Quiz behavior</h2>
+        <div>
+          <label for="quiz-interval-minutes">Quiz interval</label>
+          <p class="field-description">How often to pause and show a quiz, in minutes of watch time.</p>
+          <div class="inline">
+            <input id="quiz-interval-minutes" type="number" min="1" max="60" step="1" />
+            <span>minutes</span>
+          </div>
+        </div>
+
+        <div style="margin-top: 14px">
+          <label for="quiz-num-questions">Questions per quiz</label>
+          <p class="field-description">Number of multiple-choice questions to generate each time.</p>
+          <input id="quiz-num-questions" type="number" min="1" max="10" step="1" />
+        </div>
+
+        <div style="margin-top: 14px" class="checkbox-row">
+          <input id="quiz-auto-enabled" type="checkbox" />
+          <label for="quiz-auto-enabled" style="margin-bottom: 0">Automatically pause and show quizzes</label>
+        </div>
+        <p class="hint">
+          If disabled, a \"Quiz me\" button appears on the player and quizzes only trigger when you click it.
+        </p>
+      </section>
+
+      <section class="section actions">
+        <button id="save-button">Save settings</button>
+        <span id="status" class="status"></span>
+      </section>
+    </main>
+
+    <script type="module" src="dist/options.js"></script>
+  </body>
+  </html>
+
