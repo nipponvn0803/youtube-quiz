@@ -131,28 +131,28 @@
   <body>
     <main class="container">
       <h1>YouTube Quiz Tutor</h1>
-      <p class="subtitle">Configure how the extension connects to OpenAI and when quizzes appear.</p>
+      <p class="subtitle">Configure how the extension connects to Gemini and when quizzes appear.</p>
 
       <section class="section">
         <h2>AI settings</h2>
         <div>
-          <label for="openai-api-key">OpenAI API key</label>
+          <label for="gemini-api-key">Gemini API key</label>
           <p class="field-description">
-            Stored locally via <code>chrome.storage</code>. The key is only used to call the OpenAI API from your
+            Stored locally via <code>chrome.storage</code>. The key is only used to call the Gemini API from your
             browser.
           </p>
-          <input id="openai-api-key" type="password" autocomplete="off" placeholder="sk-..." />
+          <input id="gemini-api-key" type="password" autocomplete="off" placeholder="AIza..." />
           <div class="hint">
-            You can create and manage API keys in your OpenAI account dashboard.
+            You can create and manage API keys in Google AI Studio.
           </div>
         </div>
 
         <div style="margin-top: 14px">
-          <label for="openai-model">Model</label>
+          <label for="gemini-model">Model</label>
           <p class="field-description">
-            Any chat-completions-compatible model name (for example, <code>gpt-4.1-mini</code>).
+            Gemini model name (for example, <code>gemini-3-flash-preview</code>).
           </p>
-          <input id="openai-model" type="text" placeholder="gpt-4.1-mini" />
+          <input id="gemini-model" type="text" placeholder="gemini-3-flash-preview" />
         </div>
       </section>
 
@@ -188,7 +188,7 @@
       </section>
     </main>
 
-    <script type="module" src="dist/options.js"></script>
+    <script type="module" src="options.js"></script>
   </body>
   </html>
 

@@ -1,359 +1,315 @@
-type QuizOption = { text: string };
+import {
+  QuizQuestion,
+  QuizRequestMessage,
+  QuizResponseMessage,
+} from "./shared/types";
 
-type QuizQuestion = {
-  id: string;
-  text: string;
-  options: QuizOption[];
-  correctIndex: number;
-  explanation?: string;
-};
+// ---------------------------------------------------------------------------
+// Transcript helpers
+// ---------------------------------------------------------------------------
 
-type QuizRequestMessage = {
-  type: "REQUEST_QUIZ";
-  videoId: string;
-  videoUrl: string;
-  currentTimeSeconds: number;
-  numQuestions: number;
-};
-
-type QuizResponseMessage =
-  | { type: "QUIZ_SUCCESS"; questions: QuizQuestion[] }
-  | { type: "QUIZ_ERROR"; error: string };
-
-type ExtensionSettings = {
-  openaiApiKey: string;
-  openaiModel: string;
-  quizIntervalMinutes: number;
-  quizNumQuestions: number;
-  quizAutoEnabled: boolean;
-};
-
-declare const chrome: any;
-
-const DEFAULT_SETTINGS: ExtensionSettings = {
-  openaiApiKey: "",
-  openaiModel: "gpt-4.1-mini",
-  quizIntervalMinutes: 5,
-  quizNumQuestions: 3,
-  quizAutoEnabled: true,
-};
-
-type QuizState = {
-  lastQuizTimeSeconds: number;
-  quizInProgress: boolean;
-};
-
-const quizState: QuizState = {
-  lastQuizTimeSeconds: 0,
-  quizInProgress: false,
-};
-
-function getYouTubeVideoElement(): HTMLVideoElement | null {
-  const video = document.querySelector("video");
-  if (video instanceof HTMLVideoElement) {
-    return video;
-  }
-  return null;
+function getVideoId(): string | null {
+  return new URLSearchParams(window.location.search).get("v");
 }
 
-function getVideoIdFromUrl(url: string): string {
-  try {
-    const u = new URL(url);
-    if (u.searchParams.has("v")) {
-      return u.searchParams.get("v") || "";
-    }
-    // Shorts or other formats: try last path segment.
-    const parts = u.pathname.split("/").filter(Boolean);
-    return parts[parts.length - 1] || "";
-  } catch {
-    return "";
-  }
+function getCurrentTimeSeconds(): number {
+  return document.querySelector<HTMLVideoElement>("video")?.currentTime ?? 0;
 }
 
-function loadSettings(): Promise<ExtensionSettings> {
-  return new Promise((resolve) => {
-    chrome.storage.sync.get(DEFAULT_SETTINGS, (items: ExtensionSettings) => {
-      resolve(items);
-    });
+// Populated by the yt-quiz-transcript-data event forwarded from youtubeInterceptor.ts
+type RawNode = Record<string, unknown>;
+let latestTranscriptResponse: RawNode | null = null;
+
+window.addEventListener("yt-quiz-transcript-data", (event) => {
+  latestTranscriptResponse = (event as CustomEvent<RawNode>).detail;
+  console.log("youtube-quiz: transcript response cached");
+});
+
+function fetchTranscriptUpTo(upToSeconds: number): string {
+  if (!latestTranscriptResponse) {
+    throw new Error(
+      "No transcript loaded — please open the transcript panel first (click '...' → 'Show transcript')",
+    );
+  }
+
+  const segments = (
+    (
+      (
+        (
+          (
+            ((latestTranscriptResponse.actions as RawNode[] | undefined)?.[0]
+              ?.updateEngagementPanelAction as RawNode)
+              ?.content as RawNode
+          )?.transcriptRenderer as RawNode
+        )?.content as RawNode
+      )?.transcriptSearchPanelRenderer as RawNode
+    )?.body as RawNode
+  )?.transcriptSegmentListRenderer as RawNode | undefined;
+
+  const initialSegments = segments?.initialSegments as RawNode[] | undefined;
+  if (!initialSegments?.length) {
+    throw new Error("Transcript response contained no segments");
+  }
+
+  const upToMs = upToSeconds * 1000;
+  const lines: string[] = [];
+
+  for (const seg of initialSegments) {
+    const renderer = seg.transcriptSegmentRenderer as RawNode | undefined;
+    if (!renderer) continue;
+    if (Number(renderer.startMs ?? 0) > upToMs) break;
+    const runs = (renderer.snippet as RawNode | undefined)
+      ?.runs as Array<{ text: string }> | undefined;
+    const text = runs?.map((r) => r.text).join("").trim();
+    if (text) lines.push(text);
+  }
+
+  if (!lines.length) {
+    throw new Error("Transcript is empty up to this point in the video");
+  }
+  return lines.join(" ");
+}
+
+// ---------------------------------------------------------------------------
+// Dialog helpers
+// ---------------------------------------------------------------------------
+
+function removeExistingDialog(): void {
+  document.getElementById("yt-quiz-overlay")?.remove();
+}
+
+function createOverlay(): HTMLDivElement {
+  const overlay = document.createElement("div");
+  overlay.id = "yt-quiz-overlay";
+  overlay.style.cssText = `
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.75);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999999;
+    font-family: system-ui, -apple-system, sans-serif;
+  `;
+  return overlay;
+}
+
+function createDialog(): HTMLDivElement {
+  const dialog = document.createElement("div");
+  dialog.style.cssText = `
+    background: #0f172a;
+    border: 1px solid rgba(148, 163, 184, 0.3);
+    border-radius: 16px;
+    padding: 32px;
+    max-width: 560px;
+    width: 90%;
+    max-height: 80vh;
+    overflow-y: auto;
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.8);
+    color: #e5e7eb;
+  `;
+  return dialog;
+}
+
+function makeContinueBtn(): HTMLButtonElement {
+  const btn = document.createElement("button");
+  btn.textContent = "Continue watching →";
+  btn.style.cssText = `
+    display: block;
+    margin-top: 20px;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 999px;
+    background: linear-gradient(135deg, #38bdf8, #a855f7);
+    color: white;
+    font-weight: 600;
+    font-size: 0.95rem;
+    cursor: pointer;
+    box-shadow: 0 8px 20px rgba(56, 189, 248, 0.3);
+  `;
+  btn.addEventListener("click", () => {
+    removeExistingDialog();
+    document.querySelector<HTMLVideoElement>("video")?.play();
   });
+  return btn;
 }
 
-function shouldTriggerQuiz(currentTimeSeconds: number, settings: ExtensionSettings): boolean {
-  if (!settings.quizAutoEnabled) return false;
-  const intervalSeconds = Math.max(60, settings.quizIntervalMinutes * 60); // minimum 1 minute
-  return (
-    currentTimeSeconds - quizState.lastQuizTimeSeconds >= intervalSeconds && !quizState.quizInProgress
-  );
+function showLoadingDialog(): void {
+  removeExistingDialog();
+  const overlay = createOverlay();
+  const dialog = createDialog();
+
+  const title = document.createElement("p");
+  title.textContent = "Quick Quiz";
+  title.style.cssText = `margin: 0 0 16px; font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; color: #38bdf8;`;
+
+  const msg = document.createElement("p");
+  msg.textContent = "Generating your quiz…";
+  msg.style.cssText = `margin: 0; font-size: 1rem; color: #9ca3af;`;
+
+  dialog.append(title, msg);
+  overlay.appendChild(dialog);
+  document.body.appendChild(overlay);
 }
 
-function createOverlayRoot(): ShadowRoot {
-  let host = document.getElementById("yt-quiz-overlay-host");
-  if (!host) {
-    host = document.createElement("div");
-    host.id = "yt-quiz-overlay-host";
-    host.style.position = "absolute";
-    host.style.top = "0";
-    host.style.left = "0";
-    host.style.width = "100%";
-    host.style.height = "100%";
-    host.style.pointerEvents = "none";
-    host.style.zIndex = "999999";
+function showErrorDialog(message: string): void {
+  removeExistingDialog();
+  const overlay = createOverlay();
+  const dialog = createDialog();
 
-    const player = document.getElementById("movie_player") || document.body;
-    player.appendChild(host);
-  }
-  return host.shadowRoot || host.attachShadow({ mode: "open" });
+  const title = document.createElement("p");
+  title.textContent = "Quick Quiz";
+  title.style.cssText = `margin: 0 0 12px; font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; color: #38bdf8;`;
+
+  const msg = document.createElement("p");
+  msg.textContent = `Could not generate quiz: ${message}`;
+  msg.style.cssText = `margin: 0 0 4px; font-size: 0.95rem; color: #f97373;`;
+
+  dialog.append(title, msg, makeContinueBtn());
+  overlay.appendChild(dialog);
+  document.body.appendChild(overlay);
 }
 
-function renderQuizOverlay(questions: QuizQuestion[], onComplete: () => void) {
-  const shadow = createOverlayRoot();
-  shadow.innerHTML = "";
+function showQuizDialog(questions: QuizQuestion[]): void {
+  removeExistingDialog();
+  const overlay = createOverlay();
+  const dialog = createDialog();
 
-  // #region agent log
-  fetch("http://127.0.0.1:7529/ingest/5bdccf75-2eca-4fc5-bfb1-4c600fd0270a", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-Debug-Session-Id": "8a33ad",
-    },
-    body: JSON.stringify({
-      sessionId: "8a33ad",
-      runId: "run1",
-      hypothesisId: "H4",
-      location: "src/youtubeQuizContent.ts:renderQuizOverlay",
-      message: "Rendering quiz overlay",
-      data: {
-        questionsCount: questions.length,
-      },
-      timestamp: Date.now(),
-    }),
-  }).catch(() => {});
-  // #endregion agent log
+  const title = document.createElement("p");
+  title.textContent = "Quick Quiz";
+  title.style.cssText = `margin: 0 0 24px; font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; color: #38bdf8;`;
+  dialog.appendChild(title);
 
-  const container = document.createElement("div");
-  container.style.position = "absolute";
-  container.style.top = "0";
-  container.style.left = "0";
-  container.style.width = "100%";
-  container.style.height = "100%";
-  container.style.background = "rgba(0, 0, 0, 0.8)";
-  container.style.display = "flex";
-  container.style.flexDirection = "column";
-  container.style.alignItems = "center";
-  container.style.justifyContent = "center";
-  container.style.color = "#fff";
-  container.style.fontFamily = "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
-  container.style.pointerEvents = "auto";
+  let answeredCount = 0;
+  const continueBtn = makeContinueBtn();
+  continueBtn.style.display = "none";
 
-  let currentIndex = 0;
-  const answers = new Map<string, number>();
+  questions.forEach((q, qIdx) => {
+    const qEl = document.createElement("div");
+    if (qIdx > 0) qEl.style.marginTop = "28px";
 
-  const card = document.createElement("div");
-  card.style.background = "#111";
-  card.style.borderRadius = "12px";
-  card.style.padding = "24px";
-  card.style.maxWidth = "640px";
-  card.style.width = "90%";
-  card.style.boxShadow = "0 8px 24px rgba(0,0,0,0.5)";
+    const qText = document.createElement("p");
+    qText.textContent = `${qIdx + 1}. ${q.text}`;
+    qText.style.cssText = `margin: 0 0 14px; font-size: 1rem; font-weight: 600; line-height: 1.5;`;
 
-  const titleEl = document.createElement("h2");
-  titleEl.textContent = "Quick quiz about what you just watched";
-  titleEl.style.marginTop = "0";
-  titleEl.style.marginBottom = "16px";
+    const optionsList = document.createElement("div");
+    optionsList.style.cssText = `display: flex; flex-direction: column; gap: 8px;`;
 
-  const questionEl = document.createElement("p");
-  questionEl.style.fontSize = "16px";
-  questionEl.style.marginBottom = "16px";
+    const feedback = document.createElement("p");
+    feedback.style.cssText = `margin: 10px 0 0; font-size: 0.85rem; min-height: 1em;`;
 
-  const optionsList = document.createElement("div");
-  optionsList.style.display = "flex";
-  optionsList.style.flexDirection = "column";
-  optionsList.style.gap = "8px";
+    let answered = false;
 
-  const feedbackEl = document.createElement("div");
-  feedbackEl.style.marginTop = "12px";
-  feedbackEl.style.minHeight = "20px";
-  feedbackEl.style.fontSize = "14px";
-
-  const actionsRow = document.createElement("div");
-  actionsRow.style.display = "flex";
-  actionsRow.style.justifyContent = "space-between";
-  actionsRow.style.alignItems = "center";
-  actionsRow.style.marginTop = "20px";
-
-  const progressEl = document.createElement("span");
-  progressEl.style.fontSize = "13px";
-  progressEl.style.opacity = "0.8";
-
-  const nextButton = document.createElement("button");
-  nextButton.textContent = "Next";
-  nextButton.style.background = "#3ea6ff";
-  nextButton.style.border = "none";
-  nextButton.style.borderRadius = "999px";
-  nextButton.style.padding = "8px 16px";
-  nextButton.style.color = "#000";
-  nextButton.style.fontWeight = "600";
-  nextButton.style.cursor = "pointer";
-
-  actionsRow.appendChild(progressEl);
-  actionsRow.appendChild(nextButton);
-
-  card.appendChild(titleEl);
-  card.appendChild(questionEl);
-  card.appendChild(optionsList);
-  card.appendChild(feedbackEl);
-  card.appendChild(actionsRow);
-
-  container.appendChild(card);
-  shadow.appendChild(container);
-
-  function renderQuestion(index: number) {
-    const q = questions[index];
-    if (!q) {
-      // No question at this index; nothing to render.
-      return;
-    }
-    questionEl.textContent = q.text;
-    progressEl.textContent = `Question ${index + 1} of ${questions.length}`;
-    feedbackEl.textContent = "";
-
-    optionsList.innerHTML = "";
-    q.options.forEach((opt, optIndex) => {
+    const optionEls = q.options.map((opt, i) => {
       const btn = document.createElement("button");
       btn.textContent = opt.text;
-      btn.style.textAlign = "left";
-      btn.style.padding = "8px 12px";
-      btn.style.borderRadius = "8px";
-      btn.style.border = "1px solid rgba(255,255,255,0.2)";
-      btn.style.background = "rgba(255,255,255,0.05)";
-      btn.style.color = "#fff";
-      btn.style.cursor = "pointer";
-
+      btn.style.cssText = `
+        text-align: left;
+        padding: 10px 14px;
+        border-radius: 10px;
+        border: 1px solid rgba(148, 163, 184, 0.3);
+        background: rgba(255,255,255,0.04);
+        color: #e5e7eb;
+        font-size: 0.9rem;
+        cursor: pointer;
+      `;
+      btn.addEventListener("mouseenter", () => {
+        if (!answered) btn.style.background = "rgba(255,255,255,0.1)";
+      });
+      btn.addEventListener("mouseleave", () => {
+        if (!answered) btn.style.background = "rgba(255,255,255,0.04)";
+      });
       btn.addEventListener("click", () => {
-        answers.set(q.id, optIndex);
-        if (optIndex === q.correctIndex) {
-          feedbackEl.textContent = "Correct!";
-          feedbackEl.style.color = "#4caf50";
-        } else {
-          feedbackEl.textContent =
-            q.explanation || "Not quite. Review the video section for the correct answer.";
-          feedbackEl.style.color = "#ff9800";
+        if (answered) return;
+        answered = true;
+        answeredCount++;
+
+        const isCorrect = i === q.correctIndex;
+        optionEls.forEach((el, j) => {
+          el.style.cursor = "default";
+          if (j === q.correctIndex) {
+            el.style.background = "rgba(74, 222, 128, 0.15)";
+            el.style.borderColor = "#4ade80";
+            el.style.color = "#4ade80";
+          } else if (j === i && !isCorrect) {
+            el.style.background = "rgba(249, 115, 115, 0.15)";
+            el.style.borderColor = "#f97373";
+            el.style.color = "#f97373";
+          }
+        });
+
+        feedback.textContent = isCorrect
+          ? "Correct!"
+          : `Incorrect. ${q.explanation ?? `Answer: "${q.options[q.correctIndex].text}"`}`;
+        feedback.style.color = isCorrect ? "#4ade80" : "#f97373";
+
+        if (answeredCount === questions.length) {
+          continueBtn.style.display = "block";
         }
       });
 
       optionsList.appendChild(btn);
+      return btn;
     });
 
-    nextButton.textContent = index === questions.length - 1 ? "Finish" : "Next";
-  }
+    qEl.append(qText, optionsList, feedback);
+    dialog.appendChild(qEl);
+  });
 
-  nextButton.addEventListener("click", () => {
-    if (currentIndex < questions.length - 1) {
-      currentIndex += 1;
-      renderQuestion(currentIndex);
-    } else {
-      shadow.innerHTML = "";
-      onComplete();
+  dialog.appendChild(continueBtn);
+  overlay.appendChild(dialog);
+  document.body.appendChild(overlay);
+}
+
+// ---------------------------------------------------------------------------
+// Message listener
+// ---------------------------------------------------------------------------
+
+chrome.runtime.onMessage.addListener((message) => {
+  if (message.type === "PAUSE_VIDEO") {
+    console.log("youtube-quiz: pause video");
+
+    const video = document.querySelector<HTMLVideoElement>("video");
+    if (video && !video.paused) {
+      video.pause();
     }
-  });
 
-  renderQuestion(currentIndex);
-}
-
-function requestQuiz(
-  videoId: string,
-  videoUrl: string,
-  currentTimeSeconds: number,
-  numQuestions: number,
-): Promise<QuizResponseMessage> {
-  const message: QuizRequestMessage = {
-    type: "REQUEST_QUIZ",
-    videoId,
-    videoUrl,
-    currentTimeSeconds,
-    numQuestions,
-  };
-
-  return new Promise((resolve, reject) => {
-    chrome.runtime.sendMessage(message, (response: QuizResponseMessage) => {
-      if (chrome.runtime.lastError) {
-        reject(new Error(chrome.runtime.lastError.message));
-        return;
-      }
-      if (!response) {
-        reject(new Error("No response from background script."));
-        return;
-      }
-      resolve(response);
-    });
-  });
-}
-
-async function maybeRunAutoQuiz(video: HTMLVideoElement) {
-  const settings = await loadSettings();
-  const currentTimeSeconds = video.currentTime;
-
-  if (!shouldTriggerQuiz(currentTimeSeconds, settings)) {
-    return;
-  }
-
-  const videoUrl = window.location.href;
-  const videoId = getVideoIdFromUrl(videoUrl);
-
-  quizState.quizInProgress = true;
-  quizState.lastQuizTimeSeconds = currentTimeSeconds;
-
-  const previousPlaybackRate = video.playbackRate;
-  video.pause();
-
-  try {
-    const response = await requestQuiz(
-      videoId,
-      videoUrl,
-      currentTimeSeconds,
-      settings.quizNumQuestions,
-    );
-
-    if (response.type === "QUIZ_ERROR") {
-      console.warn("Quiz error:", response.error);
-      video.playbackRate = previousPlaybackRate;
-      video.play();
-      quizState.quizInProgress = false;
+    const videoId = getVideoId();
+    if (!videoId) {
+      showErrorDialog("Could not determine video ID.");
       return;
     }
 
-    renderQuizOverlay(response.questions, () => {
-      quizState.quizInProgress = false;
-      video.playbackRate = previousPlaybackRate;
-      video.play();
-    });
-  } catch (err) {
-    console.error("Failed to request quiz:", err);
-    quizState.quizInProgress = false;
-    video.playbackRate = previousPlaybackRate;
-    video.play();
+    const currentTime = getCurrentTimeSeconds();
+    showLoadingDialog();
+
+    void (async () => {
+      let transcript: string;
+      try {
+        transcript = fetchTranscriptUpTo(currentTime);
+      } catch (err) {
+        showErrorDialog(err instanceof Error ? err.message : String(err));
+        return;
+      }
+
+      const request: QuizRequestMessage = {
+        type: "REQUEST_QUIZ",
+        videoId,
+        videoUrl: window.location.href,
+        transcript,
+        currentTimeSeconds: currentTime,
+        numQuestions: 3,
+      };
+
+      const response = (await chrome.runtime.sendMessage(
+        request,
+      )) as QuizResponseMessage;
+
+      if (response.type === "QUIZ_SUCCESS") {
+        showQuizDialog(response.questions);
+      } else {
+        showErrorDialog(response.error);
+      }
+    })();
   }
-}
-
-function startPolling() {
-  const video = getYouTubeVideoElement();
-  if (!video) {
-    // Try again shortly – player may not be ready yet.
-    setTimeout(startPolling, 1000);
-    return;
-  }
-
-  // Poll every ~15 seconds to see if we should trigger a quiz.
-  setInterval(() => {
-    void maybeRunAutoQuiz(video);
-  }, 15000);
-}
-
-if (document.readyState === "complete" || document.readyState === "interactive") {
-  startPolling();
-} else {
-  document.addEventListener("DOMContentLoaded", () => {
-    startPolling();
-  });
-}
-
+});

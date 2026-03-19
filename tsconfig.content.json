@@ -1,9 +1,0 @@
-{
-  "extends": "./tsconfig.json",
-  "compilerOptions": {
-    "module": "none",
-    "moduleDetection": "legacy",
-    "outDir": "./dist-content"
-  },
-  "files": ["./src/youtubeQuizContent.ts"]
-}

@@ -1,16 +1,9 @@
-type ExtensionSettings = {
-  openaiApiKey: string;
-  openaiModel: string;
-  quizIntervalMinutes: number;
-  quizNumQuestions: number;
-  quizAutoEnabled: boolean;
-};
-
-declare const chrome: any;
+import { DEFAULT_SETTINGS_KEY } from "./background";
+import { ExtensionSettings } from "./shared/types";
 
 const DEFAULT_SETTINGS: ExtensionSettings = {
-  openaiApiKey: "",
-  openaiModel: "gpt-4.1-mini",
+  geminiApiKey: "",
+  geminiModel: "gemini-3-flash-preview",
   quizIntervalMinutes: 5,
   quizNumQuestions: 3,
   quizAutoEnabled: true,
@@ -26,8 +19,8 @@ function $(id: string): HTMLElement {
 
 function getInputs() {
   return {
-    apiKeyInput: $("openai-api-key") as HTMLInputElement,
-    modelInput: $("openai-model") as HTMLInputElement,
+    apiKeyInput: $("gemini-api-key") as HTMLInputElement,
+    modelInput: $("gemini-model") as HTMLInputElement,
     quizIntervalInput: $("quiz-interval-minutes") as HTMLInputElement,
     quizNumQuestionsInput: $("quiz-num-questions") as HTMLInputElement,
     quizAutoEnabledInput: $("quiz-auto-enabled") as HTMLInputElement,
@@ -36,7 +29,10 @@ function getInputs() {
   };
 }
 
-function setStatus(message: string, kind: "ok" | "error" | "neutral" = "neutral") {
+function setStatus(
+  message: string,
+  kind: "ok" | "error" | "neutral" = "neutral",
+) {
   const { statusEl } = getInputs();
   statusEl.textContent = message;
   statusEl.classList.remove("ok", "error");
@@ -44,54 +40,86 @@ function setStatus(message: string, kind: "ok" | "error" | "neutral" = "neutral"
   if (kind === "error") statusEl.classList.add("error");
 }
 
-function sanitizeNumber(raw: string, fallback: number, min: number, max: number): number {
+function sanitizeNumber(
+  raw: string,
+  fallback: number,
+  min: number,
+  max: number,
+): number {
   const n = Number(raw);
   if (!Number.isFinite(n)) return fallback;
   return Math.min(max, Math.max(min, Math.trunc(n)));
 }
 
 async function loadSettings() {
-  const { apiKeyInput, modelInput, quizIntervalInput, quizNumQuestionsInput, quizAutoEnabledInput } = getInputs();
+  const {
+    apiKeyInput,
+    modelInput,
+    quizIntervalInput,
+    quizNumQuestionsInput,
+    quizAutoEnabledInput,
+  } = getInputs();
 
   return new Promise<void>((resolve) => {
-    chrome.storage.sync.get(DEFAULT_SETTINGS, (items: ExtensionSettings) => {
-      const settings = items;
-      apiKeyInput.value = settings.openaiApiKey ?? "";
-      modelInput.value = settings.openaiModel || DEFAULT_SETTINGS.openaiModel;
-      quizIntervalInput.value = String(settings.quizIntervalMinutes || DEFAULT_SETTINGS.quizIntervalMinutes);
-      quizNumQuestionsInput.value = String(settings.quizNumQuestions || DEFAULT_SETTINGS.quizNumQuestions);
-      quizAutoEnabledInput.checked =
-        typeof settings.quizAutoEnabled === "boolean"
-          ? settings.quizAutoEnabled
-          : DEFAULT_SETTINGS.quizAutoEnabled;
-      resolve();
-    });
+    chrome.storage.sync.get(
+      DEFAULT_SETTINGS_KEY,
+      (items: { [key: string]: unknown }) => {
+        const settings = (items[DEFAULT_SETTINGS_KEY] ?? {}) as ExtensionSettings;
+        apiKeyInput.value = settings.geminiApiKey ?? "";
+        modelInput.value = settings.geminiModel || DEFAULT_SETTINGS.geminiModel;
+        quizIntervalInput.value = String(
+          settings.quizIntervalMinutes || DEFAULT_SETTINGS.quizIntervalMinutes,
+        );
+        quizNumQuestionsInput.value = String(
+          settings.quizNumQuestions || DEFAULT_SETTINGS.quizNumQuestions,
+        );
+        quizAutoEnabledInput.checked =
+          typeof settings.quizAutoEnabled === "boolean"
+            ? settings.quizAutoEnabled
+            : DEFAULT_SETTINGS.quizAutoEnabled;
+        resolve();
+      },
+    );
   });
 }
 
 async function saveSettings() {
-  const { apiKeyInput, modelInput, quizIntervalInput, quizNumQuestionsInput, quizAutoEnabledInput, saveButton } =
-    getInputs();
+  const {
+    apiKeyInput,
+    modelInput,
+    quizIntervalInput,
+    quizNumQuestionsInput,
+    quizAutoEnabledInput,
+    saveButton,
+  } = getInputs();
 
   saveButton.disabled = true;
   setStatus("Saving…");
 
   const settings: ExtensionSettings = {
-    openaiApiKey: apiKeyInput.value.trim(),
-    openaiModel: modelInput.value.trim() || DEFAULT_SETTINGS.openaiModel,
+    geminiApiKey: apiKeyInput.value.trim(),
+    geminiModel: modelInput.value.trim() || DEFAULT_SETTINGS.geminiModel,
     quizIntervalMinutes: sanitizeNumber(
       quizIntervalInput.value,
       DEFAULT_SETTINGS.quizIntervalMinutes,
       1,
       60,
     ),
-    quizNumQuestions: sanitizeNumber(quizNumQuestionsInput.value, DEFAULT_SETTINGS.quizNumQuestions, 1, 10),
+    quizNumQuestions: sanitizeNumber(
+      quizNumQuestionsInput.value,
+      DEFAULT_SETTINGS.quizNumQuestions,
+      1,
+      10,
+    ),
     quizAutoEnabled: quizAutoEnabledInput.checked,
   };
 
-  chrome.storage.sync.set(settings, () => {
+  chrome.storage.sync.set({ [DEFAULT_SETTINGS_KEY]: settings }, () => {
     if (chrome.runtime.lastError) {
-      setStatus(`Error saving settings: ${chrome.runtime.lastError.message}`, "error");
+      setStatus(
+        `Error saving settings: ${chrome.runtime.lastError.message}`,
+        "error",
+      );
     } else {
       setStatus("Settings saved.", "ok");
     }
@@ -114,4 +142,3 @@ document.addEventListener("DOMContentLoaded", () => {
     void saveSettings();
   });
 });
-

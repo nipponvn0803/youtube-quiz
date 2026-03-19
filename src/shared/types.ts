@@ -14,6 +14,7 @@ export type QuizRequestMessage = {
   type: "REQUEST_QUIZ";
   videoId: string;
   videoUrl: string;
+  transcript: string;
   currentTimeSeconds: number;
   numQuestions: number;
   tabId?: number;
@@ -30,10 +31,9 @@ export type QuizResponseMessage =
     };
 
 export type ExtensionSettings = {
-  openaiApiKey: string;
-  openaiModel: string;
+  geminiApiKey: string;
+  geminiModel: string;
   quizIntervalMinutes: number;
   quizNumQuestions: number;
   quizAutoEnabled: boolean;
 };
-

@@ -3,17 +3,23 @@
   "name": "YouTube Quiz Tutor",
   "description": "Pauses YouTube videos at intervals and shows AI-generated multiple-choice quizzes about what you have watched so far.",
   "version": "0.1.0",
-  "permissions": ["scripting", "activeTab", "storage"],
-  "host_permissions": ["https://www.youtube.com/*", "https://api.openai.com/*"],
+  "permissions": ["scripting", "activeTab", "storage", "alarms", "tabs"],
+  "host_permissions": ["https://www.youtube.com/*", "https://generativelanguage.googleapis.com/*"],
   "action": {},
   "background": {
-    "service_worker": "dist/background.js",
+    "service_worker": "background.js",
     "type": "module"
   },
   "content_scripts": [
     {
       "matches": ["https://www.youtube.com/watch*"],
-      "js": ["dist-content/youtubeQuizContent.js"],
+      "js": ["youtubeInterceptor.js"],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": ["https://www.youtube.com/watch*"],
+      "js": ["youtubeQuizContent.js"],
       "run_at": "document_idle"
     }
   ],
@@ -21,5 +27,6 @@
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
-  }
+  },
+  "options_page": "options.html"
 }

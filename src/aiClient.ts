@@ -1,95 +1,75 @@
-import type { ExtensionSettings, QuizQuestion } from "./shared/types";
+import { QuizQuestion } from "./shared/types";
 
-export async function callOpenAIForQuestions(params: {
-  settings: ExtensionSettings;
-  transcriptSnippet: string;
-  title: string;
-  currentTimeSeconds: number;
-  numQuestions: number;
-}): Promise<QuizQuestion[]> {
-  const { settings, transcriptSnippet, title, currentTimeSeconds, numQuestions } = params;
+interface GeminiResponse {
+  candidates: Array<{
+    content: { parts: Array<{ text: string }> };
+  }>;
+}
 
-  if (!settings.openaiApiKey) {
-    throw new Error("OpenAI API key is not configured in the extension options.");
-  }
+export async function generateQuizQuestions(
+  transcript: string,
+  numQuestions: number,
+  apiKey: string,
+  model: string = "gemini-3-flash-preview",
+): Promise<QuizQuestion[]> {
+  console.log("youtube-quiz: generateQuizQuestions called, model =", model, "| numQuestions =", numQuestions);
 
-  const systemPrompt =
-    "You are a helpful tutor that writes concise multiple-choice questions about a YouTube video segment. " +
-    "Focus strictly on information present in the transcript and avoid guessing.";
+  const prompt = `You are a quiz generator. Based on the following video transcript, generate ${numQuestions} multiple-choice questions to test comprehension of what was covered. Each question must have exactly 4 options with one correct answer.
 
-  const userPrompt = [
-    `Video title: ${title || "(unknown)"}`,
-    `Approximate timestamp (seconds): ${Math.round(currentTimeSeconds)}`,
-    "",
-    "Transcript excerpt for the watched portion:",
-    transcriptSnippet || "(no transcript available; infer only from the title and timestamp as safely as possible).",
-    "",
-    `Write ${numQuestions} multiple-choice questions about this content.`,
-    "Return a JSON object with this exact shape:",
-    '{ "questions": [ { "id": "q1", "text": "...", "options": ["A", "B", "C", "D"], "correctIndex": 0, "explanation": "..." } ] }',
-    "Do not include any text before or after the JSON.",
-  ].join("\n");
+Transcript:
+${transcript}
 
-  const body = {
-    model: settings.openaiModel || "gpt-4.1-mini",
-    messages: [
-      { role: "system", content: systemPrompt },
-      { role: "user", content: userPrompt },
-    ],
-    response_format: { type: "json_object" },
-  };
+Respond with a JSON object in this exact format:
+{
+  "questions": [
+    {
+      "text": "question text here",
+      "options": ["option A", "option B", "option C", "option D"],
+      "correctIndex": 0,
+      "explanation": "brief explanation of why the answer is correct"
+    }
+  ]
+}`;
 
-  const response = await fetch("https://api.openai.com/v1/chat/completions", {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+  console.log("youtube-quiz: calling Gemini API, model =", model);
+
+  const response = await fetch(url, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${settings.openaiApiKey}`,
-    },
-    body: JSON.stringify(body),
+    headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: { responseMimeType: "application/json" },
+    }),
   });
 
   if (!response.ok) {
-    const text = await response.text();
-    throw new Error(`OpenAI API error: ${response.status} ${text}`);
+    const errorText = await response.text();
+    throw new Error(`Gemini API error ${response.status}: ${errorText}`);
   }
 
-  const json = (await response.json()) as any;
-  const content = json.choices?.[0]?.message?.content;
-  if (typeof content !== "string") {
-    throw new Error("Unexpected OpenAI response format (missing content).");
-  }
+  const data = (await response.json()) as GeminiResponse;
+  console.log("youtube-quiz: Gemini API response received");
 
-  let parsed: any;
-  try {
-    parsed = JSON.parse(content);
-  } catch (err) {
-    throw new Error("Failed to parse OpenAI JSON response.");
-  }
+  const content = data.candidates?.[0]?.content?.parts?.[0]?.text;
+  if (!content) throw new Error("Empty response from Gemini");
 
-  if (!parsed || !Array.isArray(parsed.questions)) {
-    throw new Error("OpenAI response does not contain a questions array.");
-  }
+  const parsed = JSON.parse(content) as {
+    questions: Array<{
+      text: string;
+      options: string[];
+      correctIndex: number;
+      explanation?: string;
+    }>;
+  };
 
-  const questions: QuizQuestion[] = parsed.questions.map((q: any, idx: number) => {
-    const optionsArray: string[] = Array.isArray(q.options) ? q.options : [];
-    const safeOptions = optionsArray
-      .filter((opt) => typeof opt === "string")
-      .map((text) => ({ text }));
+  console.log("youtube-quiz: parsed", parsed.questions.length, "question(s)");
 
-    const correctIndex =
-      typeof q.correctIndex === "number" && q.correctIndex >= 0 && q.correctIndex < safeOptions.length
-        ? q.correctIndex
-        : 0;
-
-    return {
-      id: typeof q.id === "string" && q.id.length > 0 ? q.id : `q${idx + 1}`,
-      text: String(q.text ?? ""),
-      options: safeOptions,
-      correctIndex,
-      explanation: typeof q.explanation === "string" ? q.explanation : undefined,
-    };
-  });
-
-  return questions;
+  return parsed.questions.map((q, i) => ({
+    id: `q-${i}`,
+    text: q.text,
+    options: q.options.map((text) => ({ text })),
+    correctIndex: q.correctIndex,
+    explanation: q.explanation,
+  }));
 }
-
