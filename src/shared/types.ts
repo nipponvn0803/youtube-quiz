@@ -30,9 +30,21 @@ export type QuizResponseMessage =
       error: string;
     };
 
+export const PROVIDER_GEMINI    = "gemini"    as const;
+export const PROVIDER_OPENAI    = "openai"    as const;
+export const PROVIDER_ANTHROPIC = "anthropic" as const;
+export const PROVIDER_GROK      = "grok"      as const;
+
+export type AIProvider =
+  | typeof PROVIDER_GEMINI
+  | typeof PROVIDER_OPENAI
+  | typeof PROVIDER_ANTHROPIC
+  | typeof PROVIDER_GROK;
+
 export type ExtensionSettings = {
-  geminiApiKey: string;
-  geminiModel: string;
+  provider: AIProvider;
+  apiKey: string;
+  model: string;
   quizIntervalMinutes: number;
   quizNumQuestions: number;
   quizAutoEnabled: boolean;

@@ -1,20 +1,19 @@
-import { QuizQuestion } from "./shared/types";
+import { AIProvider, PROVIDER_GEMINI, PROVIDER_OPENAI, PROVIDER_ANTHROPIC, PROVIDER_GROK, QuizQuestion } from "./shared/types";
 
-interface GeminiResponse {
-  candidates: Array<{
-    content: { parts: Array<{ text: string }> };
-  }>;
-}
+// Best balance of speed, quality, and cost per provider
+export const RECOMMENDED_MODELS: Record<AIProvider, string> = {
+  [PROVIDER_GEMINI]:    "gemini-3-flash-preview",
+  [PROVIDER_OPENAI]:    "gpt-4o-mini",
+  [PROVIDER_ANTHROPIC]: "claude-haiku-4-5-20251001",
+  [PROVIDER_GROK]:      "grok-4-1-fast",
+};
+import * as gemini from "./providers/gemini";
+import * as openai from "./providers/openai";
+import * as anthropic from "./providers/anthropic";
+import * as grok from "./providers/grok";
 
-export async function generateQuizQuestions(
-  transcript: string,
-  numQuestions: number,
-  apiKey: string,
-  model: string = "gemini-3-flash-preview",
-): Promise<QuizQuestion[]> {
-  console.log("youtube-quiz: generateQuizQuestions called, model =", model, "| numQuestions =", numQuestions);
-
-  const prompt = `You are a quiz generator. Based on the following video transcript, generate ${numQuestions} multiple-choice questions to test comprehension of what was covered. Each question must have exactly 4 options with one correct answer.
+export function buildPrompt(transcript: string, numQuestions: number): string {
+  return `You are a quiz generator. Based on the following video transcript, generate ${numQuestions} multiple-choice questions to test comprehension of what was covered. Each question must have exactly 4 options with one correct answer.
 
 Transcript:
 ${transcript}
@@ -30,46 +29,33 @@ Respond with a JSON object in this exact format:
     }
   ]
 }`;
+}
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
-  console.log("youtube-quiz: calling Gemini API, model =", model);
+export async function generateQuizQuestions(
+  transcript: string,
+  numQuestions: number,
+  apiKey: string,
+  model: string,
+  provider: AIProvider,
+): Promise<QuizQuestion[]> {
+  const prompt = buildPrompt(transcript, numQuestions);
+  console.log("youtube-quiz: generateQuizQuestions | provider =", provider, "| model =", model);
 
-  const response = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: { responseMimeType: "application/json" },
-    }),
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Gemini API error ${response.status}: ${errorText}`);
+  switch (provider) {
+    case PROVIDER_GEMINI:    return gemini.generateQuizQuestions(prompt, apiKey, model);
+    case PROVIDER_OPENAI:    return openai.generateQuizQuestions(prompt, apiKey, model);
+    case PROVIDER_ANTHROPIC: return anthropic.generateQuizQuestions(prompt, apiKey, model);
+    case PROVIDER_GROK:      return grok.generateQuizQuestions(prompt, apiKey, model);
+    default:                 throw new Error(`Unknown provider: ${provider as string}`);
   }
+}
 
-  const data = (await response.json()) as GeminiResponse;
-  console.log("youtube-quiz: Gemini API response received");
-
-  const content = data.candidates?.[0]?.content?.parts?.[0]?.text;
-  if (!content) throw new Error("Empty response from Gemini");
-
-  const parsed = JSON.parse(content) as {
-    questions: Array<{
-      text: string;
-      options: string[];
-      correctIndex: number;
-      explanation?: string;
-    }>;
-  };
-
-  console.log("youtube-quiz: parsed", parsed.questions.length, "question(s)");
-
-  return parsed.questions.map((q, i) => ({
-    id: `q-${i}`,
-    text: q.text,
-    options: q.options.map((text) => ({ text })),
-    correctIndex: q.correctIndex,
-    explanation: q.explanation,
-  }));
+export async function listModels(provider: AIProvider, apiKey: string): Promise<string[]> {
+  switch (provider) {
+    case PROVIDER_GEMINI:    return gemini.listModels(apiKey);
+    case PROVIDER_OPENAI:    return openai.listModels(apiKey);
+    case PROVIDER_ANTHROPIC: return anthropic.listModels(apiKey);
+    case PROVIDER_GROK:      return grok.listModels(apiKey);
+    default:                 throw new Error(`Unknown provider: ${provider as string}`);
+  }
 }

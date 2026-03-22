@@ -131,28 +131,40 @@
   <body>
     <main class="container">
       <h1>YouTube Quiz Tutor</h1>
-      <p class="subtitle">Configure how the extension connects to Gemini and when quizzes appear.</p>
+      <p class="subtitle">Configure your AI provider and when quizzes appear.</p>
 
       <section class="section">
         <h2>AI settings</h2>
+
         <div>
-          <label for="gemini-api-key">Gemini API key</label>
-          <p class="field-description">
-            Stored locally via <code>chrome.storage</code>. The key is only used to call the Gemini API from your
-            browser.
-          </p>
-          <input id="gemini-api-key" type="password" autocomplete="off" placeholder="AIza..." />
-          <div class="hint">
-            You can create and manage API keys in Google AI Studio.
-          </div>
+          <label for="ai-provider">Provider</label>
+          <select id="ai-provider">
+            <option value="gemini">Google Gemini</option>
+            <option value="openai">OpenAI</option>
+            <option value="anthropic">Anthropic Claude</option>
+            <option value="grok">xAI Grok</option>
+          </select>
         </div>
 
         <div style="margin-top: 14px">
-          <label for="gemini-model">Model</label>
+          <label for="ai-api-key">API key</label>
           <p class="field-description">
-            Gemini model name (for example, <code>gemini-3-flash-preview</code>).
+            Stored locally via <code>chrome.storage</code> and only used to call the selected provider from your browser.
           </p>
-          <input id="gemini-model" type="text" placeholder="gemini-3-flash-preview" />
+          <input id="ai-api-key" type="password" autocomplete="off" placeholder="Paste your API key…" />
+        </div>
+
+        <div style="margin-top: 14px">
+          <label for="ai-model">Model</label>
+          <p class="field-description">
+            Enter your API key then click <strong>Fetch models</strong> to load available models.
+          </p>
+          <div style="display: flex; gap: 8px; align-items: center;">
+            <select id="ai-model" style="flex: 1">
+              <option disabled selected>Enter an API key first</option>
+            </select>
+            <button id="fetch-models-btn" type="button" style="flex-shrink: 0; padding: 8px 14px; font-size: 0.85rem; box-shadow: none;">Fetch models</button>
+          </div>
         </div>
       </section>
 
