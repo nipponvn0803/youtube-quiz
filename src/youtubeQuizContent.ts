@@ -775,11 +775,6 @@ async function init(): Promise<void> {
 
   const settings = await loadSettings();
 
-  if (settings?.quizAutoEnabled === false) {
-    console.log("youtube-quiz: auto quiz disabled in settings");
-    return;
-  }
-
   state.intervalSeconds = (settings?.quizIntervalMinutes ?? 1) * 60;
   state.numQuestions = settings?.quizNumQuestions ?? 3;
 

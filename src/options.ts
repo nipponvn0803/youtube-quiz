@@ -2,13 +2,19 @@ import { DEFAULT_SETTINGS_KEY } from "./background";
 import { AIProvider, ExtensionSettings } from "./shared/types";
 import { listModels, RECOMMENDED_MODELS } from "./aiClient";
 
+const API_KEY_URLS: Record<AIProvider, string> = {
+  gemini:    "https://aistudio.google.com/apikey",
+  openai:    "https://platform.openai.com/api-keys",
+  anthropic: "https://console.anthropic.com/settings/keys",
+  grok:      "https://console.x.ai/",
+};
+
 const DEFAULT_SETTINGS: ExtensionSettings = {
   provider: "gemini",
   apiKey: "",
   model: "gemini-2.0-flash",
   quizIntervalMinutes: 5,
   quizNumQuestions: 3,
-  quizAutoEnabled: true,
 };
 
 function $(id: string): HTMLElement {
@@ -19,16 +25,24 @@ function $(id: string): HTMLElement {
 
 function getInputs() {
   return {
-    providerSelect:         $("ai-provider")            as HTMLSelectElement,
-    apiKeyInput:            $("ai-api-key")             as HTMLInputElement,
-    modelSelect:            $("ai-model")               as HTMLSelectElement,
-    fetchModelsBtn:         $("fetch-models-btn")       as HTMLButtonElement,
-    quizIntervalInput:      $("quiz-interval-minutes")  as HTMLInputElement,
-    quizNumQuestionsInput:  $("quiz-num-questions")     as HTMLInputElement,
-    quizAutoEnabledInput:   $("quiz-auto-enabled")      as HTMLInputElement,
-    saveButton:             $("save-button")            as HTMLButtonElement,
-    statusEl:               $("status")                 as HTMLSpanElement,
+    providerSelect:       $("ai-provider")           as HTMLSelectElement,
+    apiKeyInput:          $("ai-api-key")             as HTMLInputElement,
+    getApiKeyLink:        $("get-api-key-link")       as HTMLAnchorElement,
+    testConnectionBtn:        $("test-connection-btn")        as HTMLButtonElement,
+    testConnectionResult:     $("test-connection-result")     as HTMLSpanElement,
+    modelSelect:          $("ai-model")               as HTMLSelectElement,
+    fetchModelsBtn:       $("fetch-models-btn")       as HTMLButtonElement,
+    quizIntervalInput:    $("quiz-interval-minutes")  as HTMLInputElement,
+    quizNumQuestionsInput:$("quiz-num-questions")     as HTMLInputElement,
+    saveButton:           $("save-button")            as HTMLButtonElement,
+    statusEl:             $("status")                 as HTMLSpanElement,
+    onboardingBanner:     $("onboarding-banner")      as HTMLDivElement,
   };
+}
+
+function updateApiKeyLink(provider: AIProvider) {
+  const { getApiKeyLink } = getInputs();
+  getApiKeyLink.href = API_KEY_URLS[provider];
 }
 
 function setStatus(message: string, kind: "ok" | "error" | "neutral" = "neutral") {
@@ -98,7 +112,7 @@ async function fetchAndPopulateModels(provider: AIProvider, apiKey: string, sele
 }
 
 async function loadSettings() {
-  const { providerSelect, apiKeyInput, quizIntervalInput, quizNumQuestionsInput, quizAutoEnabledInput } = getInputs();
+  const { providerSelect, apiKeyInput, quizIntervalInput, quizNumQuestionsInput } = getInputs();
 
   return new Promise<void>((resolve) => {
     chrome.storage.sync.get(DEFAULT_SETTINGS_KEY, async (items: { [key: string]: unknown }) => {
@@ -109,11 +123,10 @@ async function loadSettings() {
 
       providerSelect.value = provider;
       apiKeyInput.value = apiKey;
+      updateApiKeyLink(provider);
+      if (!apiKey) getInputs().onboardingBanner.style.display = "block";
       quizIntervalInput.value = String(s.quizIntervalMinutes || DEFAULT_SETTINGS.quizIntervalMinutes);
       quizNumQuestionsInput.value = String(s.quizNumQuestions || DEFAULT_SETTINGS.quizNumQuestions);
-      quizAutoEnabledInput.checked = typeof s.quizAutoEnabled === "boolean"
-        ? s.quizAutoEnabled
-        : DEFAULT_SETTINGS.quizAutoEnabled;
 
       if (apiKey) {
         await fetchAndPopulateModels(provider, apiKey, model);
@@ -128,7 +141,7 @@ async function loadSettings() {
 }
 
 async function saveSettings() {
-  const { providerSelect, apiKeyInput, modelSelect, quizIntervalInput, quizNumQuestionsInput, quizAutoEnabledInput, saveButton } = getInputs();
+  const { providerSelect, apiKeyInput, modelSelect, quizIntervalInput, quizNumQuestionsInput, saveButton } = getInputs();
 
   saveButton.disabled = true;
   setStatus("Saving…");
@@ -139,7 +152,6 @@ async function saveSettings() {
     model: modelSelect.value || DEFAULT_SETTINGS.model,
     quizIntervalMinutes: sanitizeNumber(quizIntervalInput.value, DEFAULT_SETTINGS.quizIntervalMinutes, 1, 60),
     quizNumQuestions: sanitizeNumber(quizNumQuestionsInput.value, DEFAULT_SETTINGS.quizNumQuestions, 1, 10),
-    quizAutoEnabled: quizAutoEnabledInput.checked,
   };
 
   chrome.storage.sync.set({ [DEFAULT_SETTINGS_KEY]: settings }, () => {
@@ -153,28 +165,52 @@ async function saveSettings() {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
-  loadSettings()
-    .then(() => setStatus("Settings loaded."))
-    .catch((err) => {
-      console.error(err);
-      setStatus("Failed to load settings.", "error");
-    });
+  loadSettings().catch((err) => {
+    console.error(err);
+    setStatus("Failed to load settings.", "error");
+  });
 
-  const { providerSelect, apiKeyInput, fetchModelsBtn, modelSelect, saveButton } = getInputs();
+  const { providerSelect, apiKeyInput, testConnectionBtn, fetchModelsBtn, modelSelect, saveButton, onboardingBanner } = getInputs();
 
-  // Re-clear model list when provider changes
   providerSelect.addEventListener("change", () => {
+    updateApiKeyLink(providerSelect.value as AIProvider);
     modelSelect.innerHTML = '<option disabled selected>Click "Fetch models"</option>';
+  });
+
+  testConnectionBtn.addEventListener("click", async () => {
+    const apiKey = apiKeyInput.value.trim();
+    const provider = providerSelect.value as AIProvider;
+    const { testConnectionResult } = getInputs();
+
+    if (!apiKey) { setStatus("Enter an API key first.", "error"); return; }
+
+    testConnectionBtn.disabled = true;
+    testConnectionBtn.textContent = "Testing…";
+    testConnectionResult.textContent = "";
+    testConnectionResult.className = "";
+
+    try {
+      await listModels(provider, apiKey);
+      testConnectionResult.textContent = "✓ Connected";
+      testConnectionResult.className = "ok";
+    } catch (err) {
+      testConnectionResult.textContent = `✗ ${String(err).replace(/^Error:\s*/, "")}`;
+      testConnectionResult.className = "error";
+      console.error("Test connection failed:", err);
+    } finally {
+      testConnectionBtn.disabled = false;
+      testConnectionBtn.textContent = "Test connection";
+    }
   });
 
   fetchModelsBtn.addEventListener("click", () => {
     const apiKey = apiKeyInput.value.trim();
-    if (!apiKey) {
-      setStatus("Enter an API key first.", "error");
-      return;
-    }
+    if (!apiKey) { setStatus("Enter an API key first.", "error"); return; }
     void fetchAndPopulateModels(providerSelect.value as AIProvider, apiKey, modelSelect.value);
   });
 
-  saveButton.addEventListener("click", () => { void saveSettings(); });
+  saveButton.addEventListener("click", () => {
+    if (apiKeyInput.value.trim()) onboardingBanner.style.display = "none";
+    void saveSettings();
+  });
 });

@@ -1,0 +1,9 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "moduleResolution": "bundler",
+    "types": ["vitest/globals"]
+  },
+  "include": ["src/**/*", "tests/**/*", "vitest.config.ts"]
+}

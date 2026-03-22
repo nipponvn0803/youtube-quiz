@@ -1,7 +1,10 @@
-const path = require("path");
-const CopyPlugin = require("copy-webpack-plugin");
+import path from "path";
+import { fileURLToPath } from "url";
+import CopyPlugin from "copy-webpack-plugin";
 
-module.exports = {
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+export default {
   mode: "production",
   entry: {
     background: "./src/background.ts",

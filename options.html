@@ -118,6 +118,61 @@
         color: #6b7280;
         margin-top: 4px;
       }
+      .onboarding {
+        background: linear-gradient(135deg, rgba(56,189,248,0.08), rgba(168,85,247,0.08));
+        border: 1px solid rgba(56,189,248,0.3);
+        border-radius: 10px;
+        padding: 16px 20px;
+        margin-bottom: 4px;
+      }
+      .onboarding h2 {
+        margin: 0 0 12px;
+        font-size: 1rem;
+        color: #38bdf8;
+      }
+      .onboarding ol {
+        margin: 0;
+        padding-left: 20px;
+        color: #cbd5e1;
+        font-size: 0.9rem;
+        line-height: 1.8;
+      }
+      .onboarding ol strong {
+        color: #e2e8f0;
+      }
+      .api-key-actions {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-top: 8px;
+        flex-wrap: wrap;
+      }
+      .link-btn {
+        font-size: 0.8rem;
+        color: #38bdf8;
+        text-decoration: none;
+        white-space: nowrap;
+      }
+      .link-btn:hover { text-decoration: underline; }
+      .secondary-btn {
+        background: none;
+        border: 1px solid rgba(148,163,184,0.4);
+        border-radius: 999px;
+        color: #94a3b8;
+        font-size: 0.8rem;
+        padding: 5px 12px;
+        cursor: pointer;
+        box-shadow: none;
+        font-weight: 500;
+      }
+      .secondary-btn:hover { background: rgba(148,163,184,0.08); }
+      .secondary-btn:disabled { opacity: 0.5; cursor: default; }
+      #test-connection-result {
+        font-size: 0.8rem;
+        font-weight: 500;
+      }
+      #test-connection-result.ok    { color: #4ade80; }
+      #test-connection-result.error { color: #f97373; }
       code {
         font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New",
           monospace;
@@ -132,6 +187,15 @@
     <main class="container">
       <h1>YouTube Quiz Tutor</h1>
       <p class="subtitle">Configure your AI provider and when quizzes appear.</p>
+
+      <div id="onboarding-banner" class="onboarding" style="display:none">
+        <h2>Welcome! Get started in 3 steps</h2>
+        <ol>
+          <li><strong>Choose a provider</strong> below — Google Gemini is free with a Google account.</li>
+          <li><strong>Get an API key</strong> using the link that appears after selecting a provider.</li>
+          <li><strong>Paste the key</strong>, click <em>Test connection</em>, then <em>Save settings</em>.</li>
+        </ol>
+      </div>
 
       <section class="section">
         <h2>AI settings</h2>
@@ -152,6 +216,11 @@
             Stored locally via <code>chrome.storage</code> and only used to call the selected provider from your browser.
           </p>
           <input id="ai-api-key" type="password" autocomplete="off" placeholder="Paste your API key…" />
+          <div class="api-key-actions">
+            <button id="test-connection-btn" type="button" class="secondary-btn">Test connection</button>
+            <span id="test-connection-result"></span>
+            <a id="get-api-key-link" class="link-btn" href="#" target="_blank" rel="noopener">Get a free API key →</a>
+          </div>
         </div>
 
         <div style="margin-top: 14px">
@@ -185,13 +254,6 @@
           <input id="quiz-num-questions" type="number" min="1" max="10" step="1" />
         </div>
 
-        <div style="margin-top: 14px" class="checkbox-row">
-          <input id="quiz-auto-enabled" type="checkbox" />
-          <label for="quiz-auto-enabled" style="margin-bottom: 0">Automatically pause and show quizzes</label>
-        </div>
-        <p class="hint">
-          If disabled, a \"Quiz me\" button appears on the player and quizzes only trigger when you click it.
-        </p>
       </section>
 
       <section class="section actions">
