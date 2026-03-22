@@ -217,9 +217,16 @@ function scheduleNextQuiz(fromVideoTime: number): void {
   );
 }
 
+function isAdPlaying(): boolean {
+  return (
+    document.documentElement.classList.contains("ad-showing") ||
+    !!document.querySelector(".ytp-ad-player-overlay")
+  );
+}
+
 function onTimerTick(): void {
   const video = getVideo();
-  if (!video || video.paused || state.quizShowing) return;
+  if (!video || video.paused || state.quizShowing || isAdPlaying()) return;
 
   const t = video.currentTime;
   const timeToQuiz = state.nextQuizVideoTime - t;
