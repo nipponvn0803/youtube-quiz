@@ -1,4 +1,5 @@
 import { QuizQuestion } from "../shared/types";
+import { parseQuizQuestions } from "../shared/utils";
 
 interface GeminiResponse {
   candidates: Array<{
@@ -38,7 +39,7 @@ export async function generateQuizQuestions(
   const content = data.candidates?.[0]?.content?.parts?.[0]?.text;
   if (!content) throw new Error("Empty response from Gemini");
 
-  return parseQuestions(content);
+  return parseQuizQuestions(content);
 }
 
 export async function listModels(apiKey: string): Promise<string[]> {
@@ -55,22 +56,4 @@ export async function listModels(apiKey: string): Promise<string[]> {
     .filter((m) => m.supportedGenerationMethods?.includes("generateContent"))
     .map((m) => m.name.replace("models/", ""))
     .sort();
-}
-
-function parseQuestions(content: string): QuizQuestion[] {
-  const parsed = JSON.parse(content) as {
-    questions: Array<{
-      text: string;
-      options: string[];
-      correctIndex: number;
-      explanation?: string;
-    }>;
-  };
-  return parsed.questions.map((q, i) => ({
-    id: `q-${i}`,
-    text: q.text,
-    options: q.options.map((text) => ({ text })),
-    correctIndex: q.correctIndex,
-    explanation: q.explanation,
-  }));
 }

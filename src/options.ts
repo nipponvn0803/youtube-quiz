@@ -1,6 +1,7 @@
 import { DEFAULT_SETTINGS_KEY } from "./background";
 import { AIProvider, ExtensionSettings } from "./shared/types";
 import { listModels, RECOMMENDED_MODELS } from "./aiClient";
+import { sanitizeNumber } from "./shared/utils";
 
 const API_KEY_URLS: Record<AIProvider, string> = {
   gemini:    "https://aistudio.google.com/apikey",
@@ -17,6 +18,14 @@ const DEFAULT_SETTINGS: ExtensionSettings = {
   quizNumQuestions: 3,
 };
 
+function debounce<T extends (...args: unknown[]) => void>(fn: T, ms: number): T {
+  let timer: ReturnType<typeof setTimeout>;
+  return ((...args: unknown[]) => {
+    clearTimeout(timer);
+    timer = setTimeout(() => fn(...args), ms);
+  }) as T;
+}
+
 function $(id: string): HTMLElement {
   const el = document.getElementById(id);
   if (!el) throw new Error(`Missing element with id="${id}"`);
@@ -28,13 +37,12 @@ function getInputs() {
     providerSelect:       $("ai-provider")           as HTMLSelectElement,
     apiKeyInput:          $("ai-api-key")             as HTMLInputElement,
     getApiKeyLink:        $("get-api-key-link")       as HTMLAnchorElement,
-    testConnectionBtn:        $("test-connection-btn")        as HTMLButtonElement,
-    testConnectionResult:     $("test-connection-result")     as HTMLSpanElement,
+    testConnectionBtn:    $("test-connection-btn")    as HTMLButtonElement,
+    testConnectionResult: $("test-connection-result") as HTMLSpanElement,
     modelSelect:          $("ai-model")               as HTMLSelectElement,
     fetchModelsBtn:       $("fetch-models-btn")       as HTMLButtonElement,
     quizIntervalInput:    $("quiz-interval-minutes")  as HTMLInputElement,
     quizNumQuestionsInput:$("quiz-num-questions")     as HTMLInputElement,
-    saveButton:           $("save-button")            as HTMLButtonElement,
     statusEl:             $("status")                 as HTMLSpanElement,
     onboardingBanner:     $("onboarding-banner")      as HTMLDivElement,
   };
@@ -51,12 +59,6 @@ function setStatus(message: string, kind: "ok" | "error" | "neutral" = "neutral"
   statusEl.classList.remove("ok", "error");
   if (kind === "ok") statusEl.classList.add("ok");
   if (kind === "error") statusEl.classList.add("error");
-}
-
-function sanitizeNumber(raw: string, fallback: number, min: number, max: number): number {
-  const n = Number(raw);
-  if (!Number.isFinite(n)) return fallback;
-  return Math.min(max, Math.max(min, Math.trunc(n)));
 }
 
 function populateModelSelect(models: string[], selectedModel: string, provider: AIProvider) {
@@ -141,9 +143,8 @@ async function loadSettings() {
 }
 
 async function saveSettings() {
-  const { providerSelect, apiKeyInput, modelSelect, quizIntervalInput, quizNumQuestionsInput, saveButton } = getInputs();
+  const { providerSelect, apiKeyInput, modelSelect, quizIntervalInput, quizNumQuestionsInput } = getInputs();
 
-  saveButton.disabled = true;
   setStatus("Saving…");
 
   const settings: ExtensionSettings = {
@@ -154,13 +155,14 @@ async function saveSettings() {
     quizNumQuestions: sanitizeNumber(quizNumQuestionsInput.value, DEFAULT_SETTINGS.quizNumQuestions, 1, 10),
   };
 
+  if (settings.apiKey) getInputs().onboardingBanner.style.display = "none";
+
   chrome.storage.sync.set({ [DEFAULT_SETTINGS_KEY]: settings }, () => {
     if (chrome.runtime.lastError) {
       setStatus(`Error saving: ${chrome.runtime.lastError.message}`, "error");
     } else {
       setStatus("Settings saved.", "ok");
     }
-    saveButton.disabled = false;
   });
 }
 
@@ -170,12 +172,25 @@ document.addEventListener("DOMContentLoaded", () => {
     setStatus("Failed to load settings.", "error");
   });
 
-  const { providerSelect, apiKeyInput, testConnectionBtn, fetchModelsBtn, modelSelect, saveButton, onboardingBanner } = getInputs();
+  const { providerSelect, apiKeyInput, testConnectionBtn, fetchModelsBtn, modelSelect, quizIntervalInput, quizNumQuestionsInput } = getInputs();
+
+  const debouncedSave = debounce(() => { void saveSettings(); }, 600);
 
   providerSelect.addEventListener("change", () => {
     updateApiKeyLink(providerSelect.value as AIProvider);
     modelSelect.innerHTML = '<option disabled selected>Click "Fetch models"</option>';
+    void saveSettings();
   });
+
+  const debouncedFetchModels = debounce(() => {
+    const apiKey = apiKeyInput.value.trim();
+    if (apiKey) void fetchAndPopulateModels(providerSelect.value as AIProvider, apiKey, modelSelect.value);
+  }, 600);
+
+  apiKeyInput.addEventListener("input", () => { debouncedSave(); debouncedFetchModels(); });
+  modelSelect.addEventListener("change", () => { void saveSettings(); });
+  quizIntervalInput.addEventListener("input", debouncedSave);
+  quizNumQuestionsInput.addEventListener("input", debouncedSave);
 
   testConnectionBtn.addEventListener("click", async () => {
     const apiKey = apiKeyInput.value.trim();
@@ -207,10 +222,5 @@ document.addEventListener("DOMContentLoaded", () => {
     const apiKey = apiKeyInput.value.trim();
     if (!apiKey) { setStatus("Enter an API key first.", "error"); return; }
     void fetchAndPopulateModels(providerSelect.value as AIProvider, apiKey, modelSelect.value);
-  });
-
-  saveButton.addEventListener("click", () => {
-    if (apiKeyInput.value.trim()) onboardingBanner.style.display = "none";
-    void saveSettings();
   });
 });

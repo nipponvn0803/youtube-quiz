@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <title>YouTube Quiz Tutor – Options</title>
+    <title>Youtube Quiz Generator – Options</title>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <style>
       body {
@@ -80,12 +80,6 @@
       .checkbox-row input[type="checkbox"] {
         width: 16px;
         height: 16px;
-      }
-      .actions {
-        margin-top: 24px;
-        display: flex;
-        gap: 12px;
-        align-items: center;
       }
       button {
         appearance: none;
@@ -185,7 +179,7 @@
   </head>
   <body>
     <main class="container">
-      <h1>YouTube Quiz Tutor</h1>
+      <h1>Youtube Quiz Generator</h1>
       <p class="subtitle">Configure your AI provider and when quizzes appear.</p>
 
       <div id="onboarding-banner" class="onboarding" style="display:none">
@@ -193,7 +187,7 @@
         <ol>
           <li><strong>Choose a provider</strong> below — Google Gemini is free with a Google account.</li>
           <li><strong>Get an API key</strong> using the link that appears after selecting a provider.</li>
-          <li><strong>Paste the key</strong>, click <em>Test connection</em>, then <em>Save settings</em>.</li>
+          <li><strong>Paste the key</strong> — models load automatically and settings are saved. You're ready to go!</li>
         </ol>
       </div>
 
@@ -256,10 +250,7 @@
 
       </section>
 
-      <section class="section actions">
-        <button id="save-button">Save settings</button>
-        <span id="status" class="status"></span>
-      </section>
+      <p id="status" class="status" style="margin-top: 16px; min-height: 1.2em;"></p>
     </main>
 
     <script type="module" src="options.js"></script>

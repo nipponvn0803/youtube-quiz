@@ -1,4 +1,4 @@
-# YouTube Quiz Tutor
+# Youtube Quiz Generator
 
 A Chrome extension (Manifest V3) that pauses YouTube videos at configurable intervals and shows AI-generated multiple-choice quizzes based on the transcript up to that point — helping you stay engaged and retain what you watch.
 
@@ -70,6 +70,7 @@ Use the **Get a free API key →** link in the options page after selecting a pr
 | `providers/` | Service worker | One module per provider (Gemini, OpenAI, Anthropic, Grok) |
 | `options.ts` | Options page | Reads/writes `ExtensionSettings` to `chrome.storage.sync` |
 | `shared/types.ts` | Shared | `QuizQuestion`, `ExtensionSettings`, and message types |
+| `shared/utils.ts` | Shared | `parseQuizQuestions` (JSON/markdown parser) and `sanitizeNumber` |
 
 ### Message flow
 
@@ -82,16 +83,12 @@ youtubeQuizContent (content script)
   ← quiz dialog rendered in the DOM
 ```
 
-### Key design notes
-
-- **Two-world split**: `youtubeInterceptor.ts` runs in `"world": "MAIN"` to patch `window.fetch`. It communicates back to the isolated world only via `CustomEvent` on `window` — the only cross-world boundary available in MV3.
-- **Pre-generation**: Questions are generated 20 s before the scheduled quiz so the overlay appears without delay.
-- **SPA navigation**: The content script listens for `yt-navigate-finish` and resets all state on each `/watch` navigation.
-
 ## Development
 
 ```bash
-npm run watch   # rebuild on every file change, then reload the extension in chrome://extensions
+npm run watch        # rebuild on every file change, then reload the extension in chrome://extensions
+npm test             # run the test suite once
+npm run test:watch   # run tests in watch mode
 ```
 
-There are no automated tests configured at this time.
+Tests live in `tests/` and cover all provider modules, the AI client dispatcher, and shared utilities.

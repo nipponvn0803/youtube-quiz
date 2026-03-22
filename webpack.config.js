@@ -8,7 +8,6 @@ export default {
   mode: "production",
   entry: {
     background: "./src/background.ts",
-    aiClient: "./src/aiClient.ts",
     options: "./src/options.ts",
     youtubeQuizContent: "./src/youtubeQuizContent.ts",
     youtubeInterceptor: "./src/youtubeInterceptor.ts",

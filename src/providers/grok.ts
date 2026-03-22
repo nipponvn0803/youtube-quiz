@@ -1,4 +1,5 @@
 import { QuizQuestion } from "../shared/types";
+import { parseQuizQuestions } from "../shared/utils";
 
 interface GrokResponse {
   choices: Array<{ message: { content: string } }>;
@@ -35,7 +36,7 @@ export async function generateQuizQuestions(
   const content = data.choices?.[0]?.message?.content;
   if (!content) throw new Error("Empty response from Grok");
 
-  return parseQuestions(content);
+  return parseQuizQuestions(content);
 }
 
 export async function listModels(apiKey: string): Promise<string[]> {
@@ -49,22 +50,4 @@ export async function listModels(apiKey: string): Promise<string[]> {
 
   const data = (await response.json()) as GrokModelsResponse;
   return (data.data ?? []).map((m) => m.id).sort();
-}
-
-function parseQuestions(content: string): QuizQuestion[] {
-  const parsed = JSON.parse(content) as {
-    questions: Array<{
-      text: string;
-      options: string[];
-      correctIndex: number;
-      explanation?: string;
-    }>;
-  };
-  return parsed.questions.map((q, i) => ({
-    id: `q-${i}`,
-    text: q.text,
-    options: q.options.map((text) => ({ text })),
-    correctIndex: q.correctIndex,
-    explanation: q.explanation,
-  }));
 }

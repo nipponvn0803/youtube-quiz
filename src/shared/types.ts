@@ -17,7 +17,6 @@ export type QuizRequestMessage = {
   transcript: string;
   currentTimeSeconds: number;
   numQuestions: number;
-  tabId?: number;
 };
 
 export type QuizResponseMessage =

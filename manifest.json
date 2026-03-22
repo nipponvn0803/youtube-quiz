@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "YouTube Quiz Tutor",
+  "name": "Youtube Quiz Generator",
   "description": "Pauses YouTube videos at intervals and shows AI-generated multiple-choice quizzes about what you have watched so far.",
   "version": "0.1.0",
   "permissions": ["scripting", "activeTab", "storage", "alarms", "tabs"],

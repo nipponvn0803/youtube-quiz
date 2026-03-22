@@ -1,4 +1,5 @@
 import { QuizQuestion } from "../shared/types";
+import { parseQuizQuestions } from "../shared/utils";
 
 interface AnthropicResponse {
   content: Array<{ type: string; text: string }>;
@@ -38,7 +39,7 @@ export async function generateQuizQuestions(
   const content = data.content?.find((b) => b.type === "text")?.text;
   if (!content) throw new Error("Empty response from Anthropic");
 
-  return parseQuestions(content);
+  return parseQuizQuestions(content);
 }
 
 export async function listModels(apiKey: string): Promise<string[]> {
@@ -55,24 +56,4 @@ export async function listModels(apiKey: string): Promise<string[]> {
 
   const data = (await response.json()) as AnthropicModelsResponse;
   return (data.data ?? []).map((m) => m.id).sort();
-}
-
-function parseQuestions(content: string): QuizQuestion[] {
-  // Extract JSON block if wrapped in markdown code fences
-  const jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/) ?? [null, content];
-  const parsed = JSON.parse(jsonMatch[1].trim()) as {
-    questions: Array<{
-      text: string;
-      options: string[];
-      correctIndex: number;
-      explanation?: string;
-    }>;
-  };
-  return parsed.questions.map((q, i) => ({
-    id: `q-${i}`,
-    text: q.text,
-    options: q.options.map((text) => ({ text })),
-    correctIndex: q.correctIndex,
-    explanation: q.explanation,
-  }));
 }
