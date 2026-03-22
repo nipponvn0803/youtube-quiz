@@ -19,6 +19,7 @@ interface SessionState {
   autoResume: boolean;
   quizShowing: boolean;
   lastKnownTime: number;
+  lastQuizCheckpointSeconds: number;
   timerId: ReturnType<typeof setInterval> | null;
 }
 
@@ -35,6 +36,7 @@ function freshState(): SessionState {
     autoResume: false,
     quizShowing: false,
     lastKnownTime: 0,
+    lastQuizCheckpointSeconds: 0,
     timerId: null,
   };
 }
@@ -82,14 +84,17 @@ function extractSegments(data: RawNode): RawNode[] | null {
   );
 }
 
-function getTranscriptUpTo(upToSeconds: number): string | null {
+function getTranscriptUpTo(upToSeconds: number, fromSeconds = 0): string | null {
   if (!transcriptSegments) return null;
   const upToMs = upToSeconds * 1000;
+  const fromMs = fromSeconds * 1000;
   const lines: string[] = [];
   for (const seg of transcriptSegments) {
     const r = seg.transcriptSegmentRenderer as RawNode | undefined;
     if (!r) continue;
-    if (Number(r.startMs ?? 0) > upToMs) break;
+    const startMs = Number(r.startMs ?? 0);
+    if (startMs > upToMs) break;
+    if (startMs < fromMs) continue;
     const runs = (r.snippet as RawNode | undefined)?.runs as
       | Array<{ text: string }>
       | undefined;
@@ -246,7 +251,7 @@ function onTimerTick(): void {
 
 async function preGenerateQuiz(currentTime: number): Promise<void> {
   const videoId = getVideoId();
-  const transcript = getTranscriptUpTo(currentTime);
+  const transcript = getTranscriptUpTo(currentTime, state.lastQuizCheckpointSeconds);
 
   if (!videoId || !transcript) {
     console.log("youtube-quiz: transcript not ready at pre-generation time, will generate on demand");
@@ -308,7 +313,7 @@ function showQuizOrLoading(currentTime: number): void {
 
 async function generateAndShow(currentTime: number): Promise<void> {
   const videoId = getVideoId();
-  const transcript = getTranscriptUpTo(currentTime);
+  const transcript = getTranscriptUpTo(currentTime, state.lastQuizCheckpointSeconds);
 
   if (!videoId || !transcript) {
     showErrorDialog("No transcript available. Ensure the video has captions and try again.");
@@ -501,6 +506,7 @@ function dismissAndResume(): void {
   state.quizShowing = false;
   const video = getVideo();
   if (video) {
+    state.lastQuizCheckpointSeconds = video.currentTime;
     scheduleNextQuiz(video.currentTime);
     void video.play();
   }
