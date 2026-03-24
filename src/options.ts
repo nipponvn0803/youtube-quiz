@@ -16,6 +16,7 @@ const DEFAULT_SETTINGS: ExtensionSettings = {
   model: "gemini-2.0-flash",
   quizIntervalMinutes: 5,
   quizNumQuestions: 3,
+  enabled: true,
 };
 
 function debounce<T extends (...args: unknown[]) => void>(fn: T, ms: number): T {
@@ -45,6 +46,7 @@ function getInputs() {
     quizNumQuestionsInput:$("quiz-num-questions")     as HTMLInputElement,
     statusEl:             $("status")                 as HTMLSpanElement,
     onboardingBanner:     $("onboarding-banner")      as HTMLDivElement,
+    enabledToggle:        $("quiz-enabled")           as HTMLInputElement,
   };
 }
 
@@ -129,6 +131,7 @@ async function loadSettings() {
       if (!apiKey) getInputs().onboardingBanner.style.display = "block";
       quizIntervalInput.value = String(s.quizIntervalMinutes || DEFAULT_SETTINGS.quizIntervalMinutes);
       quizNumQuestionsInput.value = String(s.quizNumQuestions || DEFAULT_SETTINGS.quizNumQuestions);
+      getInputs().enabledToggle.checked = s.enabled ?? true;
 
       if (apiKey) {
         await fetchAndPopulateModels(provider, apiKey, model);
@@ -143,7 +146,7 @@ async function loadSettings() {
 }
 
 async function saveSettings() {
-  const { providerSelect, apiKeyInput, modelSelect, quizIntervalInput, quizNumQuestionsInput } = getInputs();
+  const { providerSelect, apiKeyInput, modelSelect, quizIntervalInput, quizNumQuestionsInput, enabledToggle } = getInputs();
 
   setStatus("Saving…");
 
@@ -153,6 +156,7 @@ async function saveSettings() {
     model: modelSelect.value || DEFAULT_SETTINGS.model,
     quizIntervalMinutes: sanitizeNumber(quizIntervalInput.value, DEFAULT_SETTINGS.quizIntervalMinutes, 1, 60),
     quizNumQuestions: sanitizeNumber(quizNumQuestionsInput.value, DEFAULT_SETTINGS.quizNumQuestions, 1, 10),
+    enabled: enabledToggle.checked,
   };
 
   if (settings.apiKey) getInputs().onboardingBanner.style.display = "none";
@@ -172,7 +176,7 @@ document.addEventListener("DOMContentLoaded", () => {
     setStatus("Failed to load settings.", "error");
   });
 
-  const { providerSelect, apiKeyInput, testConnectionBtn, fetchModelsBtn, modelSelect, quizIntervalInput, quizNumQuestionsInput } = getInputs();
+  const { providerSelect, apiKeyInput, testConnectionBtn, fetchModelsBtn, modelSelect, quizIntervalInput, quizNumQuestionsInput, enabledToggle } = getInputs();
 
   const debouncedSave = debounce(() => { void saveSettings(); }, 600);
 
@@ -191,6 +195,7 @@ document.addEventListener("DOMContentLoaded", () => {
   modelSelect.addEventListener("change", () => { void saveSettings(); });
   quizIntervalInput.addEventListener("input", debouncedSave);
   quizNumQuestionsInput.addEventListener("input", debouncedSave);
+  enabledToggle.addEventListener("change", () => { void saveSettings(); });
 
   testConnectionBtn.addEventListener("click", async () => {
     const apiKey = apiKeyInput.value.trim();

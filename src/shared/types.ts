@@ -46,4 +46,5 @@ export type ExtensionSettings = {
   model: string;
   quizIntervalMinutes: number;
   quizNumQuestions: number;
+  enabled: boolean;
 };

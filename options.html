@@ -112,6 +112,54 @@
         color: #6b7280;
         margin-top: 4px;
       }
+      .toggle-bar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        background: rgba(56, 189, 248, 0.06);
+        border: 1px solid rgba(56, 189, 248, 0.2);
+        border-radius: 10px;
+        padding: 12px 16px;
+        margin-bottom: 16px;
+      }
+      .toggle-bar-label {
+        font-weight: 600;
+        font-size: 0.95rem;
+      }
+      .toggle-bar-sub {
+        font-size: 0.8rem;
+        color: #9ca3af;
+        margin-top: 2px;
+      }
+      .switch {
+        position: relative;
+        display: inline-block;
+        width: 44px;
+        height: 24px;
+        flex-shrink: 0;
+      }
+      .switch input { opacity: 0; width: 0; height: 0; }
+      .slider {
+        position: absolute;
+        inset: 0;
+        background: #334155;
+        border-radius: 999px;
+        cursor: pointer;
+        transition: background 0.2s;
+      }
+      .slider::before {
+        content: "";
+        position: absolute;
+        width: 18px;
+        height: 18px;
+        left: 3px;
+        top: 3px;
+        background: white;
+        border-radius: 50%;
+        transition: transform 0.2s;
+      }
+      .switch input:checked + .slider { background: #38bdf8; }
+      .switch input:checked + .slider::before { transform: translateX(20px); }
       .onboarding {
         background: linear-gradient(135deg, rgba(56,189,248,0.08), rgba(168,85,247,0.08));
         border: 1px solid rgba(56,189,248,0.3);
@@ -181,6 +229,17 @@
     <main class="container">
       <h1>Youtube Quiz Generator</h1>
       <p class="subtitle">Configure your AI provider and when quizzes appear.</p>
+
+      <div class="toggle-bar">
+        <div>
+          <div class="toggle-bar-label">Quizzes enabled</div>
+          <div class="toggle-bar-sub">Pause to disable quizzes for the current session</div>
+        </div>
+        <label class="switch">
+          <input type="checkbox" id="quiz-enabled" checked />
+          <span class="slider"></span>
+        </label>
+      </div>
 
       <div id="onboarding-banner" class="onboarding" style="display:none">
         <h2>Welcome! Get started in 3 steps</h2>

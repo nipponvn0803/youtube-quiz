@@ -1,0 +1,306 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Youtube Quiz Generator</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+      * { box-sizing: border-box; }
+      body {
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        margin: 0;
+        padding: 16px;
+        background: #0f172a;
+        color: #e5e7eb;
+        width: 380px;
+        min-width: 380px;
+      }
+      h1 {
+        margin: 0 0 2px;
+        font-size: 1.1rem;
+      }
+      p.subtitle {
+        margin: 0 0 12px;
+        font-size: 0.78rem;
+        color: #9ca3af;
+      }
+      .section {
+        margin-top: 12px;
+        padding-top: 10px;
+        border-top: 1px solid rgba(148, 163, 184, 0.3);
+      }
+      .section h2 {
+        margin: 0 0 10px;
+        font-size: 0.85rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: #94a3b8;
+      }
+      label {
+        display: block;
+        font-weight: 500;
+        font-size: 0.82rem;
+        margin-bottom: 4px;
+      }
+      .field-description {
+        font-size: 0.74rem;
+        color: #9ca3af;
+        margin-bottom: 6px;
+      }
+      input[type="text"],
+      input[type="number"],
+      input[type="password"],
+      select {
+        width: 100%;
+        padding: 6px 8px;
+        border-radius: 6px;
+        border: 1px solid rgba(148, 163, 184, 0.5);
+        background: #020617;
+        color: #e5e7eb;
+        font-size: 0.82rem;
+      }
+      input:focus,
+      select:focus {
+        outline: 2px solid #38bdf8;
+        outline-offset: 1px;
+        border-color: transparent;
+      }
+      .inline {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        font-size: 0.82rem;
+      }
+      .inline input[type="number"] {
+        width: 70px;
+      }
+      .api-key-actions {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-top: 6px;
+        flex-wrap: wrap;
+      }
+      button {
+        appearance: none;
+        border: none;
+        border-radius: 999px;
+        padding: 6px 14px;
+        background: linear-gradient(135deg, #38bdf8, #a855f7);
+        color: white;
+        font-weight: 600;
+        font-size: 0.8rem;
+        cursor: pointer;
+        box-shadow: 0 6px 16px rgba(56, 189, 248, 0.3);
+      }
+      button:disabled {
+        opacity: 0.5;
+        cursor: default;
+        box-shadow: none;
+      }
+      .secondary-btn {
+        background: none;
+        border: 1px solid rgba(148, 163, 184, 0.4);
+        border-radius: 999px;
+        color: #94a3b8;
+        font-size: 0.75rem;
+        padding: 4px 10px;
+        cursor: pointer;
+        box-shadow: none;
+        font-weight: 500;
+      }
+      .secondary-btn:hover { background: rgba(148, 163, 184, 0.08); }
+      .secondary-btn:disabled { opacity: 0.5; cursor: default; }
+      .status {
+        font-size: 0.78rem;
+        color: #9ca3af;
+        margin-top: 10px;
+        min-height: 1.1em;
+      }
+      .status.ok    { color: #4ade80; }
+      .status.error { color: #f97373; }
+      #test-connection-result {
+        font-size: 0.75rem;
+        font-weight: 500;
+      }
+      #test-connection-result.ok    { color: #4ade80; }
+      #test-connection-result.error { color: #f97373; }
+      .link-btn {
+        font-size: 0.75rem;
+        color: #38bdf8;
+        text-decoration: none;
+        white-space: nowrap;
+      }
+      .link-btn:hover { text-decoration: underline; }
+      .model-row {
+        display: flex;
+        gap: 6px;
+        align-items: center;
+      }
+      .model-row select { flex: 1; }
+      .toggle-bar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        background: rgba(56, 189, 248, 0.06);
+        border: 1px solid rgba(56, 189, 248, 0.2);
+        border-radius: 8px;
+        padding: 10px 12px;
+        margin-bottom: 12px;
+      }
+      .toggle-bar-label {
+        font-weight: 600;
+        font-size: 0.85rem;
+      }
+      .toggle-bar-sub {
+        font-size: 0.74rem;
+        color: #9ca3af;
+        margin-top: 2px;
+      }
+      .switch {
+        position: relative;
+        display: inline-block;
+        width: 40px;
+        height: 22px;
+        flex-shrink: 0;
+      }
+      .switch input { opacity: 0; width: 0; height: 0; }
+      .slider {
+        position: absolute;
+        inset: 0;
+        background: #334155;
+        border-radius: 999px;
+        cursor: pointer;
+        transition: background 0.2s;
+      }
+      .slider::before {
+        content: "";
+        position: absolute;
+        width: 16px;
+        height: 16px;
+        left: 3px;
+        top: 3px;
+        background: white;
+        border-radius: 50%;
+        transition: transform 0.2s;
+      }
+      .switch input:checked + .slider { background: #38bdf8; }
+      .switch input:checked + .slider::before { transform: translateX(18px); }
+      .onboarding {
+        background: linear-gradient(135deg, rgba(56,189,248,0.08), rgba(168,85,247,0.08));
+        border: 1px solid rgba(56,189,248,0.3);
+        border-radius: 8px;
+        padding: 10px 14px;
+        margin-bottom: 4px;
+        font-size: 0.8rem;
+      }
+      .onboarding h2 {
+        margin: 0 0 8px;
+        font-size: 0.85rem;
+        color: #38bdf8;
+        text-transform: none;
+        letter-spacing: 0;
+      }
+      .onboarding ol {
+        margin: 0;
+        padding-left: 18px;
+        color: #cbd5e1;
+        line-height: 1.7;
+      }
+      .onboarding ol strong { color: #e2e8f0; }
+      code {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace;
+        font-size: 0.75rem;
+        background: rgba(15, 23, 42, 0.8);
+        padding: 1px 4px;
+        border-radius: 4px;
+      }
+      .field + .field { margin-top: 10px; }
+    </style>
+  </head>
+  <body>
+    <h1>Youtube Quiz Generator</h1>
+    <p class="subtitle">Configure your AI provider and quiz settings.</p>
+
+    <div class="toggle-bar">
+      <div>
+        <div class="toggle-bar-label">Quizzes enabled</div>
+        <div class="toggle-bar-sub">Toggle off to watch without quizzes</div>
+      </div>
+      <label class="switch">
+        <input type="checkbox" id="quiz-enabled" checked />
+        <span class="slider"></span>
+      </label>
+    </div>
+
+    <div id="onboarding-banner" class="onboarding" style="display:none">
+      <h2>Get started in 3 steps</h2>
+      <ol>
+        <li><strong>Choose a provider</strong> below.</li>
+        <li><strong>Get an API key</strong> via the link that appears.</li>
+        <li><strong>Paste the key</strong> — models load automatically.</li>
+      </ol>
+    </div>
+
+    <section class="section">
+      <h2>AI settings</h2>
+
+      <div class="field">
+        <label for="ai-provider">Provider</label>
+        <select id="ai-provider">
+          <option value="gemini">Google Gemini</option>
+          <option value="openai">OpenAI</option>
+          <option value="anthropic">Anthropic Claude</option>
+          <option value="grok">xAI Grok</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="ai-api-key">API key</label>
+        <p class="field-description">
+          Stored locally via <code>chrome.storage</code>, only sent to your chosen provider.
+        </p>
+        <input id="ai-api-key" type="password" autocomplete="off" placeholder="Paste your API key…" />
+        <div class="api-key-actions">
+          <button id="test-connection-btn" type="button" class="secondary-btn">Test connection</button>
+          <span id="test-connection-result"></span>
+          <a id="get-api-key-link" class="link-btn" href="#" target="_blank" rel="noopener">Get a free API key →</a>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="ai-model">Model</label>
+        <p class="field-description">Enter your API key to load available models.</p>
+        <div class="model-row">
+          <select id="ai-model">
+            <option disabled selected>Enter an API key first</option>
+          </select>
+          <button id="fetch-models-btn" type="button" style="flex-shrink:0;padding:6px 10px;font-size:0.75rem;box-shadow:none;">Fetch</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>Quiz behavior</h2>
+
+      <div class="field">
+        <label for="quiz-interval-minutes">Quiz interval</label>
+        <p class="field-description">How often to pause and show a quiz (minutes of watch time).</p>
+        <div class="inline">
+          <input id="quiz-interval-minutes" type="number" min="1" max="60" step="1" />
+          <span>minutes</span>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="quiz-num-questions">Questions per quiz</label>
+        <p class="field-description">Number of multiple-choice questions to generate.</p>
+        <input id="quiz-num-questions" type="number" min="1" max="10" step="1" />
+      </div>
+    </section>
+
+    <p id="status" class="status"></p>
+
+    <script type="module" src="options.js"></script>
+  </body>
+</html>

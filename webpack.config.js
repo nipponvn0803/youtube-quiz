@@ -27,6 +27,7 @@ export default {
       patterns: [
         { from: "manifest.json", to: "manifest.json" },
         { from: "options.html", to: "." },
+        { from: "popup.html", to: "." },
         { from: "icons", to: "icons" },
       ],
     }),

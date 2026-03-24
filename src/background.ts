@@ -3,13 +3,6 @@ import { generateQuizQuestions } from "./aiClient";
 
 export const DEFAULT_SETTINGS_KEY = "settings";
 
-// Open the options page automatically on first install
-chrome.runtime.onInstalled.addListener((details) => {
-  if (details.reason === "install") {
-    void chrome.tabs.create({ url: chrome.runtime.getURL("options.html") });
-  }
-});
-
 const DEFAULT_PROVIDER: AIProvider = "gemini";
 const DEFAULT_MODEL = "gemini-2.0-flash";
 

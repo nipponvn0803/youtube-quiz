@@ -15,6 +15,7 @@ interface SessionState {
   nextQuizVideoTime: number;
   intervalSeconds: number;
   numQuestions: number;
+  enabled: boolean;
   score: { correct: number; total: number };
   autoResume: boolean;
   quizShowing: boolean;
@@ -32,6 +33,7 @@ function freshState(): SessionState {
     nextQuizVideoTime: Infinity,
     intervalSeconds: 60,
     numQuestions: 3,
+    enabled: true,
     score: { correct: 0, total: 0 },
     autoResume: false,
     quizShowing: false,
@@ -225,6 +227,7 @@ function isAdPlaying(): boolean {
 }
 
 function onTimerTick(): void {
+  if (!state.enabled) return;
   const video = getVideo();
   if (!video || video.paused || state.quizShowing || isAdPlaying()) return;
 
@@ -777,6 +780,7 @@ async function init(): Promise<void> {
 
   state.intervalSeconds = (settings?.quizIntervalMinutes ?? 1) * 60;
   state.numQuestions = settings?.quizNumQuestions ?? 3;
+  state.enabled = settings?.enabled ?? true;
 
   const video = await waitForVideo();
   console.log("youtube-quiz: video element found");
@@ -795,6 +799,20 @@ async function init(): Promise<void> {
 
   scheduleNextQuiz(video.currentTime);
 }
+
+// React to settings changes (e.g. toggling enabled from the popup) without a page reload
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area !== "sync" || !changes[SETTINGS_KEY]) return;
+  const newSettings = changes[SETTINGS_KEY].newValue as ExtensionSettings | undefined;
+  if (newSettings) {
+    state.enabled = newSettings.enabled ?? true;
+    state.intervalSeconds = (newSettings.quizIntervalMinutes ?? 1) * 60;
+    state.numQuestions = newSettings.quizNumQuestions ?? 3;
+    if (!state.enabled) {
+      removeCountdown();
+    }
+  }
+});
 
 // Re-initialize on YouTube SPA navigation (video changes without full page reload)
 window.addEventListener("yt-navigate-finish", () => {
