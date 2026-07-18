@@ -42,6 +42,11 @@ export type AIProvider =
   | typeof PROVIDER_GROK
   | typeof PROVIDER_ONDEVICE;
 
+export const LOCALE_EN = "en" as const;
+export const LOCALE_VI = "vi" as const;
+
+export type Locale = typeof LOCALE_EN | typeof LOCALE_VI;
+
 export type ExtensionSettings = {
   provider: AIProvider;
   apiKey: string;
@@ -49,4 +54,5 @@ export type ExtensionSettings = {
   quizIntervalMinutes: number;
   quizNumQuestions: number;
   enabled: boolean;
+  language: Locale;
 };

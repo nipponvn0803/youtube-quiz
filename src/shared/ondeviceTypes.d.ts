@@ -21,10 +21,17 @@ declare global {
     ): void;
   }
 
+  interface LanguageModelExpected {
+    type: "text";
+    languages: string[];
+  }
+
   interface LanguageModelCreateOptions {
     temperature?: number;
     topK?: number;
     initialPrompts?: Array<{ role: "system" | "user" | "assistant"; content: string }>;
+    expectedInputs?: LanguageModelExpected[];
+    expectedOutputs?: LanguageModelExpected[];
     signal?: AbortSignal;
     monitor?: (m: LanguageModelMonitor) => void;
   }

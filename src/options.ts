@@ -1,8 +1,9 @@
 import { DEFAULT_SETTINGS_KEY } from "./background";
-import { AIProvider, ExtensionSettings, PROVIDER_ONDEVICE } from "./shared/types";
+import { AIProvider, ExtensionSettings, Locale, LOCALE_EN, PROVIDER_ONDEVICE } from "./shared/types";
 import { listModels, RECOMMENDED_MODELS } from "./aiClient";
 import { sanitizeNumber } from "./shared/utils";
 import { checkOnDeviceAvailability, downloadOnDeviceModel } from "./shared/ondeviceAvailability";
+import { applyTranslations, setLocale, t } from "./shared/i18n";
 
 const API_KEY_URLS: Record<AIProvider, string> = {
   gemini:    "https://aistudio.google.com/apikey",
@@ -19,6 +20,7 @@ const DEFAULT_SETTINGS: ExtensionSettings = {
   quizIntervalMinutes: 5,
   quizNumQuestions: 3,
   enabled: true,
+  language: LOCALE_EN,
 };
 
 let downloadPromise: Promise<void> | null = null;
@@ -63,6 +65,7 @@ function getInputs() {
     ondeviceDownloadBtn:  $("ondevice-download-btn")         as HTMLButtonElement,
     ondeviceUnavailableBanner: $("ondevice-unavailable-banner") as HTMLDivElement,
     switchToCloudBtn:     $("switch-to-cloud-btn")           as HTMLButtonElement,
+    languageSelect:       $("ui-language")                  as HTMLSelectElement,
   };
 }
 
@@ -86,7 +89,7 @@ async function refreshOnDeviceStatus() {
   const availability = await checkOnDeviceAvailability();
 
   if (availability === "available") {
-    ondeviceStatusText.textContent = "✓ Ready — no download needed.";
+    ondeviceStatusText.textContent = t("ondevice_ready");
     ondeviceDownloadHint.style.display = "none";
     ondeviceProgressRow.style.display = "none";
     ondeviceDownloadBtn.style.display = "none";
@@ -95,18 +98,18 @@ async function refreshOnDeviceStatus() {
   }
 
   if (availability === "downloadable") {
-    ondeviceStatusText.textContent = "The on-device model hasn't been downloaded yet.";
+    ondeviceStatusText.textContent = t("ondevice_not_downloaded");
     ondeviceDownloadHint.style.display = "";
     ondeviceProgressRow.style.display = "none";
     ondeviceDownloadBtn.style.display = "";
     ondeviceDownloadBtn.disabled = false;
-    ondeviceDownloadBtn.textContent = "Download model now";
+    ondeviceDownloadBtn.textContent = t("ondevice_download_btn");
     ondeviceUnavailableBanner.style.display = "none";
     return;
   }
 
   if (availability === "downloading") {
-    ondeviceStatusText.textContent = "Downloading the on-device model…";
+    ondeviceStatusText.textContent = t("ondevice_downloading");
     ondeviceDownloadHint.style.display = "";
     ondeviceProgressRow.style.display = "flex";
     ondeviceDownloadBtn.style.display = "none";
@@ -122,7 +125,7 @@ async function refreshOnDeviceStatus() {
   }
 
   // "unsupported" | "unavailable"
-  ondeviceStatusText.textContent = "On-device AI isn't available on this browser or device.";
+  ondeviceStatusText.textContent = t("ondevice_unsupported");
   ondeviceDownloadHint.style.display = "none";
   ondeviceProgressRow.style.display = "none";
   ondeviceDownloadBtn.style.display = "none";
@@ -152,10 +155,10 @@ async function startOnDeviceDownload(isManualRetry = false): Promise<void> {
         const { ondeviceStatusText, ondeviceDownloadHint: hint, ondeviceProgressRow: row, ondeviceDownloadBtn: btn } = getInputs();
         row.style.display = "none";
         hint.style.display = "none";
-        ondeviceStatusText.textContent = `Download failed: ${String(err)}`;
+        ondeviceStatusText.textContent = t("ondevice_download_failed", { error: String(err) });
         btn.style.display = "";
         btn.disabled = false;
-        btn.textContent = "Retry download";
+        btn.textContent = t("ondevice_retry_btn");
       } else {
         await refreshOnDeviceStatus();
       }
@@ -195,7 +198,7 @@ function populateModelSelect(models: string[], selectedModel: string, provider: 
   for (const m of ordered) {
     const opt = document.createElement("option");
     opt.value = m;
-    opt.textContent = m === recommended ? `${m} (Recommended)` : m;
+    opt.textContent = m === recommended ? `${m}${t("model_recommended_suffix")}` : m;
     if (m === active) opt.selected = true;
     modelSelect.appendChild(opt);
   }
@@ -213,27 +216,27 @@ function populateModelSelect(models: string[], selectedModel: string, provider: 
 async function fetchAndPopulateModels(provider: AIProvider, apiKey: string, selectedModel: string) {
   const { fetchModelsBtn, modelSelect } = getInputs();
   fetchModelsBtn.disabled = true;
-  fetchModelsBtn.textContent = "Loading…";
-  modelSelect.innerHTML = "<option disabled selected>Loading models…</option>";
+  fetchModelsBtn.textContent = t("fetch_models_loading");
+  modelSelect.innerHTML = `<option disabled selected>${t("model_placeholder_loading")}</option>`;
 
   try {
     const models = await listModels(provider, apiKey);
     if (models.length === 0) {
-      modelSelect.innerHTML = "<option disabled selected>No models found</option>";
+      modelSelect.innerHTML = `<option disabled selected>${t("model_placeholder_none")}</option>`;
     } else {
       populateModelSelect(models, selectedModel, provider);
     }
   } catch (err) {
-    modelSelect.innerHTML = "<option disabled selected>Failed to load models</option>";
-    setStatus(`Could not fetch models: ${String(err)}`, "error");
+    modelSelect.innerHTML = `<option disabled selected>${t("model_placeholder_failed")}</option>`;
+    setStatus(t("status_fetch_models_error", { error: String(err) }), "error");
   } finally {
     fetchModelsBtn.disabled = false;
-    fetchModelsBtn.textContent = "Fetch models";
+    fetchModelsBtn.textContent = t("options_fetch_models_btn");
   }
 }
 
 async function loadSettings() {
-  const { providerSelect, apiKeyInput, quizIntervalInput, quizNumQuestionsInput } = getInputs();
+  const { providerSelect, apiKeyInput, quizIntervalInput, quizNumQuestionsInput, languageSelect } = getInputs();
 
   return new Promise<void>((resolve) => {
     chrome.storage.sync.get(DEFAULT_SETTINGS_KEY, async (items: { [key: string]: unknown }) => {
@@ -241,6 +244,12 @@ async function loadSettings() {
       const provider: AIProvider = s.provider ?? DEFAULT_SETTINGS.provider;
       const apiKey = s.apiKey ?? "";
       const model = s.model || DEFAULT_SETTINGS.model;
+      const language: Locale = s.language ?? DEFAULT_SETTINGS.language;
+
+      setLocale(language);
+      document.documentElement.lang = language;
+      languageSelect.value = language;
+      applyTranslations();
 
       providerSelect.value = provider;
       apiKeyInput.value = apiKey;
@@ -255,7 +264,7 @@ async function loadSettings() {
         await fetchAndPopulateModels(provider, apiKey, model);
       } else {
         const { modelSelect } = getInputs();
-        modelSelect.innerHTML = "<option disabled selected>Enter an API key first</option>";
+        modelSelect.innerHTML = `<option disabled selected>${t("model_placeholder_initial")}</option>`;
       }
 
       resolve();
@@ -264,9 +273,9 @@ async function loadSettings() {
 }
 
 async function saveSettings() {
-  const { providerSelect, apiKeyInput, modelSelect, quizIntervalInput, quizNumQuestionsInput, enabledToggle } = getInputs();
+  const { providerSelect, apiKeyInput, modelSelect, quizIntervalInput, quizNumQuestionsInput, enabledToggle, languageSelect } = getInputs();
 
-  setStatus("Saving…");
+  setStatus(t("status_saving"));
 
   const settings: ExtensionSettings = {
     provider: providerSelect.value as AIProvider,
@@ -275,15 +284,16 @@ async function saveSettings() {
     quizIntervalMinutes: sanitizeNumber(quizIntervalInput.value, DEFAULT_SETTINGS.quizIntervalMinutes, 1, 60),
     quizNumQuestions: sanitizeNumber(quizNumQuestionsInput.value, DEFAULT_SETTINGS.quizNumQuestions, 1, 10),
     enabled: enabledToggle.checked,
+    language: languageSelect.value as Locale,
   };
 
   if (settings.apiKey) getInputs().onboardingBanner.style.display = "none";
 
   chrome.storage.sync.set({ [DEFAULT_SETTINGS_KEY]: settings }, () => {
     if (chrome.runtime.lastError) {
-      setStatus(`Error saving: ${chrome.runtime.lastError.message}`, "error");
+      setStatus(t("status_save_error", { error: chrome.runtime.lastError.message ?? "" }), "error");
     } else {
-      setStatus("Settings saved.", "ok");
+      setStatus(t("status_saved"), "ok");
     }
   });
 }
@@ -291,10 +301,10 @@ async function saveSettings() {
 document.addEventListener("DOMContentLoaded", () => {
   loadSettings().catch((err) => {
     console.error(err);
-    setStatus("Failed to load settings.", "error");
+    setStatus(t("status_load_error"), "error");
   });
 
-  const { providerSelect, apiKeyInput, testConnectionBtn, fetchModelsBtn, modelSelect, quizIntervalInput, quizNumQuestionsInput, enabledToggle, ondeviceDownloadBtn, switchToCloudBtn } = getInputs();
+  const { providerSelect, apiKeyInput, testConnectionBtn, fetchModelsBtn, modelSelect, quizIntervalInput, quizNumQuestionsInput, enabledToggle, ondeviceDownloadBtn, switchToCloudBtn, languageSelect } = getInputs();
 
   const debouncedSave = debounce(() => { void saveSettings(); }, 600);
 
@@ -302,14 +312,23 @@ document.addEventListener("DOMContentLoaded", () => {
     const provider = providerSelect.value as AIProvider;
     updateApiKeyLink(provider);
     applyProviderVisibility(provider);
-    modelSelect.innerHTML = '<option disabled selected>Click "Fetch models"</option>';
+    modelSelect.innerHTML = `<option disabled selected>${t("model_placeholder_click_fetch")}</option>`;
+    void saveSettings();
+  });
+
+  languageSelect.addEventListener("change", () => {
+    const locale = languageSelect.value as Locale;
+    setLocale(locale);
+    document.documentElement.lang = locale;
+    applyTranslations();
+    void refreshOnDeviceStatus();
     void saveSettings();
   });
 
   ondeviceDownloadBtn.addEventListener("click", () => {
     const { ondeviceDownloadBtn: btn } = getInputs();
     btn.disabled = true;
-    btn.textContent = "Downloading…";
+    btn.textContent = t("ondevice_downloading_btn");
     void startOnDeviceDownload(true);
   });
 
@@ -336,16 +355,16 @@ document.addEventListener("DOMContentLoaded", () => {
     const provider = providerSelect.value as AIProvider;
     const { testConnectionResult } = getInputs();
 
-    if (!apiKey) { setStatus("Enter an API key first.", "error"); return; }
+    if (!apiKey) { setStatus(t("status_enter_api_key"), "error"); return; }
 
     testConnectionBtn.disabled = true;
-    testConnectionBtn.textContent = "Testing…";
+    testConnectionBtn.textContent = t("test_connection_testing");
     testConnectionResult.textContent = "";
     testConnectionResult.className = "";
 
     try {
       await listModels(provider, apiKey);
-      testConnectionResult.textContent = "✓ Connected";
+      testConnectionResult.textContent = t("test_connection_ok");
       testConnectionResult.className = "ok";
     } catch (err) {
       testConnectionResult.textContent = `✗ ${String(err).replace(/^Error:\s*/, "")}`;
@@ -353,13 +372,13 @@ document.addEventListener("DOMContentLoaded", () => {
       console.error("Test connection failed:", err);
     } finally {
       testConnectionBtn.disabled = false;
-      testConnectionBtn.textContent = "Test connection";
+      testConnectionBtn.textContent = t("test_connection_btn");
     }
   });
 
   fetchModelsBtn.addEventListener("click", () => {
     const apiKey = apiKeyInput.value.trim();
-    if (!apiKey) { setStatus("Enter an API key first.", "error"); return; }
+    if (!apiKey) { setStatus(t("status_enter_api_key"), "error"); return; }
     void fetchAndPopulateModels(providerSelect.value as AIProvider, apiKey, modelSelect.value);
   });
 });

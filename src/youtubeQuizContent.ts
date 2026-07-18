@@ -1,4 +1,5 @@
-import { ExtensionSettings, QuizQuestion, QuizRequestMessage, QuizResponseMessage } from "./shared/types";
+import { ExtensionSettings, LOCALE_EN, QuizQuestion, QuizRequestMessage, QuizResponseMessage } from "./shared/types";
+import { setLocale, t } from "./shared/i18n";
 
 // Must match DEFAULT_SETTINGS_KEY in background.ts
 const SETTINGS_KEY = "settings";
@@ -51,39 +52,90 @@ let state = freshState();
 
 type RawNode = Record<string, unknown>;
 
-// Store raw segments so we can filter by time at quiz generation time
-let transcriptSegments: RawNode[] | null = null;
+type TranscriptSegment = { startMs: number; text: string };
+
+// Normalized transcript, sorted by startMs, so quiz generation can filter by
+// time regardless of which endpoint it came from
+let transcriptSegments: TranscriptSegment[] | null = null;
 
 window.addEventListener("yt-quiz-transcript-data", (event) => {
-  const data = (event as CustomEvent<RawNode>).detail;
-  const segments = extractSegments(data);
+  const detail = (event as CustomEvent<{ endpoint: string; data: RawNode }>).detail;
+  if (!detail?.data) return;
+
+  const segments =
+    detail.endpoint === "timedtext"
+      ? extractTimedtextSegments(detail.data)
+      : extractInnerTubeSegments(detail.data);
+
   if (segments?.length) {
-    transcriptSegments = segments;
-    console.log("youtube-quiz: transcript cached, segments =", segments.length);
-    showTranscriptBadge("ready");
-  } else {
-    console.log("youtube-quiz: transcript response had no segments");
+    // Keep the fuller transcript — e.g. don't let a partial caption chunk
+    // replace the complete panel transcript
+    if (!transcriptSegments || segments.length > transcriptSegments.length) {
+      transcriptSegments = segments;
+      console.log("youtube-quiz: transcript cached from", detail.endpoint, "| segments =", segments.length);
+      showTranscriptBadge("ready");
+    }
+  } else if (detail.endpoint !== "get_panel") {
+    // get_panel also serves non-transcript panels (chapters, comments, …)
+    console.log("youtube-quiz:", detail.endpoint, "response had no transcript segments");
   }
 });
 
-function extractSegments(data: RawNode): RawNode[] | null {
-  const segList = (
-    (
-      (
-        (
-          (
-            (data.actions as RawNode[] | undefined)?.[0]
-              ?.updateEngagementPanelAction as RawNode
-          )?.content as RawNode
-        )?.transcriptRenderer as RawNode
-      )?.content as RawNode
-    )?.transcriptSearchPanelRenderer as RawNode
-  )?.body as RawNode;
+// get_transcript and get_panel wrap the same transcriptSegmentListRenderer in
+// different outer structures (and YouTube reshuffles them over time), so
+// search for it recursively instead of hard-coding a path.
+function findInitialSegments(node: unknown): RawNode[] | null {
+  if (!node || typeof node !== "object") return null;
+  if (Array.isArray(node)) {
+    for (const item of node) {
+      const found = findInitialSegments(item);
+      if (found) return found;
+    }
+    return null;
+  }
+  const obj = node as RawNode;
+  const list = (obj.transcriptSegmentListRenderer as RawNode | undefined)?.initialSegments;
+  if (Array.isArray(list)) return list as RawNode[];
+  for (const value of Object.values(obj)) {
+    const found = findInitialSegments(value);
+    if (found) return found;
+  }
+  return null;
+}
 
-  return (
-    ((segList?.transcriptSegmentListRenderer as RawNode)
-      ?.initialSegments as RawNode[]) ?? null
-  );
+function extractInnerTubeSegments(data: RawNode): TranscriptSegment[] | null {
+  const initialSegments = findInitialSegments(data);
+  if (!initialSegments) return null;
+
+  const out: TranscriptSegment[] = [];
+  for (const seg of initialSegments) {
+    // Chapter headings use transcriptSectionHeaderRenderer — skip those
+    const r = seg.transcriptSegmentRenderer as RawNode | undefined;
+    if (!r) continue;
+    const runs = (r.snippet as RawNode | undefined)?.runs as
+      | Array<{ text: string }>
+      | undefined;
+    const text = runs?.map((x) => x.text).join("").trim();
+    if (text) out.push({ startMs: Number(r.startMs ?? 0), text });
+  }
+  return out.length ? out : null;
+}
+
+// timedtext json3 shape: { events: [{ tStartMs, segs: [{ utf8 }] }] }
+// Events without segs are styling/window markers; newline-only segs separate
+// rolling caption lines.
+function extractTimedtextSegments(data: RawNode): TranscriptSegment[] | null {
+  const events = data.events as RawNode[] | undefined;
+  if (!Array.isArray(events)) return null;
+
+  const out: TranscriptSegment[] = [];
+  for (const ev of events) {
+    const segs = ev.segs as Array<{ utf8?: string }> | undefined;
+    if (!segs) continue;
+    const text = segs.map((s) => s.utf8 ?? "").join("").replace(/\s+/g, " ").trim();
+    if (text) out.push({ startMs: Number(ev.tStartMs ?? 0), text });
+  }
+  return out.length ? out : null;
 }
 
 function getTranscriptUpTo(upToSeconds: number, fromSeconds = 0): string | null {
@@ -92,16 +144,9 @@ function getTranscriptUpTo(upToSeconds: number, fromSeconds = 0): string | null 
   const fromMs = fromSeconds * 1000;
   const lines: string[] = [];
   for (const seg of transcriptSegments) {
-    const r = seg.transcriptSegmentRenderer as RawNode | undefined;
-    if (!r) continue;
-    const startMs = Number(r.startMs ?? 0);
-    if (startMs > upToMs) break;
-    if (startMs < fromMs) continue;
-    const runs = (r.snippet as RawNode | undefined)?.runs as
-      | Array<{ text: string }>
-      | undefined;
-    const text = runs?.map((x) => x.text).join("").trim();
-    if (text) lines.push(text);
+    if (seg.startMs > upToMs) break;
+    if (seg.startMs < fromMs) continue;
+    lines.push(seg.text);
   }
   return lines.length ? lines.join(" ") : null;
 }
@@ -192,12 +237,6 @@ async function tryAutoOpenTranscript(): Promise<boolean> {
 
   showTranscriptBtn.click();
   console.log("youtube-quiz: Show transcript button clicked");
-
-  const transcriptPanel = await waitForElement("ytd-transcript-search-panel-renderer", 3000);
-  if (!transcriptPanel) {
-    console.log("youtube-quiz: transcript panel did not appear after clicking Show transcript");
-    return false;
-  }
 
   return true;
 }
@@ -326,7 +365,7 @@ async function generateAndShow(currentTime: number): Promise<void> {
   const transcript = getTranscriptUpTo(currentTime, state.lastQuizCheckpointSeconds);
 
   if (!videoId || !transcript) {
-    showErrorDialog("No transcript available. Ensure the video has captions and try again.");
+    showErrorDialog(t("quiz_no_transcript_error"));
     return;
   }
 
@@ -386,6 +425,9 @@ function showTranscriptBadge(status: "pending" | "ready"): void {
         from { opacity: 1; }
         to   { opacity: 0; }
       }
+      #yt-quiz-transcript-badge strong {
+        color: #cbd5e1;
+      }
     `;
     document.head.appendChild(style);
   }
@@ -414,9 +456,9 @@ function showTranscriptBadge(status: "pending" | "ready"): void {
       <div style="display:flex;align-items:center;gap:10px">
         <span style="font-size:1.32rem">📋</span>
         <div>
-          <div style="font-size:0.94rem;font-weight:600;color:#e2e8f0;letter-spacing:0.02em">YouTube Quiz</div>
+          <div style="font-size:0.94rem;font-weight:600;color:#e2e8f0;letter-spacing:0.02em">${t("badge_title")}</div>
           <div style="font-size:0.86rem;color:#94a3b8;margin-top:2px;line-height:1.4">
-            Expand the description and click<br><strong style="color:#cbd5e1">Show transcript</strong> to enable quizzes
+            ${t("badge_pending_desc")}
           </div>
         </div>
       </div>
@@ -426,8 +468,8 @@ function showTranscriptBadge(status: "pending" | "ready"): void {
       <div style="display:flex;align-items:center;gap:10px">
         <span style="font-size:1.32rem">✅</span>
         <div>
-          <div style="font-size:0.94rem;font-weight:600;color:#e2e8f0;letter-spacing:0.02em">YouTube Quiz</div>
-          <div style="font-size:0.86rem;color:#4ade80;margin-top:2px">Transcript loaded — quizzes ready</div>
+          <div style="font-size:0.94rem;font-weight:600;color:#e2e8f0;letter-spacing:0.02em">${t("badge_title")}</div>
+          <div style="font-size:0.86rem;color:#4ade80;margin-top:2px">${t("badge_ready_desc")}</div>
         </div>
       </div>
     `;
@@ -474,7 +516,7 @@ function showCountdown(seconds: number): void {
     textEl.id = "yt-quiz-countdown-text";
 
     const skipBtn = document.createElement("button");
-    skipBtn.textContent = "Skip";
+    skipBtn.textContent = t("skip_btn");
     skipBtn.style.cssText = `
       background: none;
       border: 1px solid rgba(148, 163, 184, 0.3);
@@ -496,7 +538,7 @@ function showCountdown(seconds: number): void {
   }
 
   const textEl = document.getElementById("yt-quiz-countdown-text");
-  if (textEl) textEl.textContent = `Quiz in ${seconds}s`;
+  if (textEl) textEl.textContent = t("quiz_in_seconds", { seconds });
 }
 
 function removeCountdown(): void {
@@ -561,11 +603,11 @@ function showLoadingDialog(): void {
   const dialog = createDialog();
 
   const title = document.createElement("p");
-  title.textContent = "Quick Quiz";
+  title.textContent = t("quiz_title");
   title.style.cssText = `margin: 0 0 16px; font-size: 0.96rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; color: #38bdf8;`;
 
   const msg = document.createElement("p");
-  msg.textContent = "Generating your quiz…";
+  msg.textContent = t("quiz_generating");
   msg.style.cssText = `margin: 0; font-size: 1.2rem; color: #9ca3af;`;
 
   dialog.append(title, msg);
@@ -581,15 +623,15 @@ function showErrorDialog(message: string): void {
   const dialog = createDialog();
 
   const title = document.createElement("p");
-  title.textContent = "Quick Quiz";
+  title.textContent = t("quiz_title");
   title.style.cssText = `margin: 0 0 12px; font-size: 0.96rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; color: #38bdf8;`;
 
   const msg = document.createElement("p");
-  msg.textContent = `Could not generate quiz: ${message}`;
+  msg.textContent = t("quiz_generation_error", { message });
   msg.style.cssText = `margin: 0 0 16px; font-size: 1.14rem; color: #f97373;`;
 
   const btn = document.createElement("button");
-  btn.textContent = "Continue watching →";
+  btn.textContent = t("continue_watching_btn");
   btn.style.cssText = primaryBtnStyle();
   btn.addEventListener("click", dismissAndResume);
 
@@ -608,13 +650,13 @@ function showQuizDialog(questions: QuizQuestion[]): void {
   header.style.cssText = `display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;`;
 
   const title = document.createElement("span");
-  title.textContent = "Quick Quiz";
+  title.textContent = t("quiz_title");
   title.style.cssText = `font-size: 0.96rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; color: #38bdf8;`;
 
   const scoreEl = document.createElement("span");
   scoreEl.id = "yt-quiz-score-display";
   scoreEl.style.cssText = `font-size: 1.02rem; color: #9ca3af;`;
-  scoreEl.textContent = `Score: ${state.score.correct} / ${state.score.total}`;
+  scoreEl.textContent = t("score_display", { correct: state.score.correct, total: state.score.total });
 
   header.append(title, scoreEl);
   dialog.appendChild(header);
@@ -669,7 +711,7 @@ function showQuizDialog(questions: QuizQuestion[]): void {
         // Update live score
         const scoreDisplay = document.getElementById("yt-quiz-score-display");
         if (scoreDisplay) {
-          scoreDisplay.textContent = `Score: ${state.score.correct} / ${state.score.total}`;
+          scoreDisplay.textContent = t("score_display", { correct: state.score.correct, total: state.score.total });
         }
 
         // Colour options
@@ -687,8 +729,10 @@ function showQuizDialog(questions: QuizQuestion[]): void {
         });
 
         feedback.textContent = isCorrect
-          ? "Correct!"
-          : `Incorrect. ${q.explanation ?? `Answer: "${q.options[q.correctIndex].text}"`}`;
+          ? t("correct_feedback")
+          : t("incorrect_feedback", {
+              explanation: q.explanation ?? t("incorrect_answer_fallback", { answer: q.options[q.correctIndex].text }),
+            });
         feedback.style.color = isCorrect ? "#4ade80" : "#f97373";
 
         if (answeredCount === questions.length) {
@@ -728,10 +772,10 @@ function showQuizDialog(questions: QuizQuestion[]): void {
   toggleInput.addEventListener("change", () => {
     state.autoResume = toggleInput.checked;
   });
-  toggleLabel.append(toggleInput, document.createTextNode(" Auto-resume after answering"));
+  toggleLabel.append(toggleInput, document.createTextNode(" " + t("auto_resume_label")));
 
   const continueBtn = document.createElement("button");
-  continueBtn.textContent = "Continue watching →";
+  continueBtn.textContent = t("continue_watching_btn");
   continueBtn.style.cssText = primaryBtnStyle();
   continueBtn.addEventListener("click", dismissAndResume);
 
@@ -742,7 +786,7 @@ function showQuizDialog(questions: QuizQuestion[]): void {
   const skipRow = document.createElement("div");
   skipRow.style.cssText = `margin-top: 16px; text-align: right;`;
   const skipBtn = document.createElement("button");
-  skipBtn.textContent = "Skip quiz";
+  skipBtn.textContent = t("skip_quiz_btn");
   skipBtn.style.cssText = secondaryBtnStyle();
   skipBtn.addEventListener("click", dismissAndResume);
   skipRow.appendChild(skipBtn);
@@ -778,6 +822,7 @@ async function init(): Promise<void> {
 
   const settings = await loadSettings();
 
+  setLocale(settings?.language ?? LOCALE_EN);
   state.intervalSeconds = (settings?.quizIntervalMinutes ?? 1) * 60;
   state.numQuestions = settings?.quizNumQuestions ?? 3;
   state.enabled = settings?.enabled ?? true;
@@ -805,6 +850,7 @@ chrome.storage.onChanged.addListener((changes, area) => {
   if (area !== "sync" || !changes[SETTINGS_KEY]) return;
   const newSettings = changes[SETTINGS_KEY].newValue as ExtensionSettings | undefined;
   if (newSettings) {
+    setLocale(newSettings.language ?? LOCALE_EN);
     state.enabled = newSettings.enabled ?? true;
     state.intervalSeconds = (newSettings.quizIntervalMinutes ?? 1) * 60;
     state.numQuestions = newSettings.quizNumQuestions ?? 3;

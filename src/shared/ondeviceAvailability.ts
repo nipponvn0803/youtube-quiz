@@ -16,6 +16,7 @@ export async function downloadOnDeviceModel(onProgress?: (fraction: number) => v
   }
 
   const session = await LanguageModel.create({
+    expectedOutputs: [{ type: "text", languages: ["en"] }],
     monitor(m) {
       m.addEventListener("downloadprogress", (e) => onProgress?.(e.loaded));
     },

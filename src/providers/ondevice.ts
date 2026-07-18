@@ -36,7 +36,9 @@ export async function generateQuizQuestions(prompt: string): Promise<QuizQuestio
     );
   }
 
-  const session = await LanguageModel!.create();
+  const session = await LanguageModel!.create({
+    expectedOutputs: [{ type: "text", languages: ["en"] }],
+  });
   try {
     const content = await session.prompt(prompt, { responseConstraint: QUIZ_JSON_SCHEMA });
     return parseQuizQuestions(content);

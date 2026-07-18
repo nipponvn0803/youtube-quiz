@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <title>Youtube Quiz Generator</title>
+    <title data-i18n="app_title">Youtube Quiz Generator</title>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <style>
       * { box-sizing: border-box; }
@@ -229,16 +229,42 @@
       @keyframes spin {
         to { transform: rotate(360deg); }
       }
+      .lang-row {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 6px;
+        margin-bottom: 8px;
+      }
+      .lang-row label {
+        margin-bottom: 0;
+        font-size: 0.74rem;
+        color: #9ca3af;
+        font-weight: 500;
+      }
+      .lang-row select {
+        width: auto;
+        padding: 3px 6px;
+        font-size: 0.74rem;
+      }
     </style>
   </head>
   <body>
-    <h1>Youtube Quiz Generator</h1>
-    <p class="subtitle">Configure your AI provider and quiz settings.</p>
+    <div class="lang-row">
+      <label for="ui-language" data-i18n="language_label">Language</label>
+      <select id="ui-language">
+        <option value="en" data-i18n="language_en">English</option>
+        <option value="vi" data-i18n="language_vi">Tiếng Việt</option>
+      </select>
+    </div>
+
+    <h1 data-i18n="app_title">Youtube Quiz Generator</h1>
+    <p class="subtitle" data-i18n="popup_subtitle">Configure your AI provider and quiz settings.</p>
 
     <div class="toggle-bar">
       <div>
-        <div class="toggle-bar-label">Quizzes enabled</div>
-        <div class="toggle-bar-sub">Toggle off to watch without quizzes</div>
+        <div class="toggle-bar-label" data-i18n="quiz_enabled_label">Quizzes enabled</div>
+        <div class="toggle-bar-sub" data-i18n="popup_quiz_enabled_sub">Toggle off to watch without quizzes</div>
       </div>
       <label class="switch">
         <input type="checkbox" id="quiz-enabled" checked />
@@ -247,89 +273,89 @@
     </div>
 
     <div id="onboarding-banner" class="onboarding" style="display:none">
-      <h2>Get started in 3 steps</h2>
+      <h2 data-i18n="popup_onboarding_title">Get started in 3 steps</h2>
       <ol>
-        <li><strong>Choose a provider</strong> below.</li>
-        <li><strong>Get an API key</strong> via the link that appears.</li>
-        <li><strong>Paste the key</strong> — models load automatically.</li>
+        <li data-i18n-html="popup_onboarding_step1"><strong>Choose a provider</strong> below.</li>
+        <li data-i18n-html="popup_onboarding_step2"><strong>Get an API key</strong> via the link that appears.</li>
+        <li data-i18n-html="popup_onboarding_step3"><strong>Paste the key</strong> — models load automatically.</li>
       </ol>
     </div>
 
     <section class="section">
-      <h2>AI settings</h2>
+      <h2 data-i18n="ai_settings_heading">AI settings</h2>
 
       <div class="field">
-        <label for="ai-provider">Provider</label>
+        <label for="ai-provider" data-i18n="provider_label">Provider</label>
         <select id="ai-provider">
-          <option value="ondevice" selected>On-device (Free, built-in, no signup) — Recommended</option>
-          <option value="gemini">Google Gemini</option>
-          <option value="openai">OpenAI</option>
-          <option value="anthropic">Anthropic Claude</option>
-          <option value="grok">xAI Grok</option>
+          <option value="ondevice" selected data-i18n="provider_ondevice">On-device (Free, built-in, no signup) — Recommended</option>
+          <option value="gemini" data-i18n="provider_gemini">Google Gemini</option>
+          <option value="openai" data-i18n="provider_openai">OpenAI</option>
+          <option value="anthropic" data-i18n="provider_anthropic">Anthropic Claude</option>
+          <option value="grok" data-i18n="provider_grok">xAI Grok</option>
         </select>
       </div>
 
       <div id="ondevice-status" class="field" style="display:none">
-        <label>On-device AI status</label>
-        <p id="ondevice-status-text" class="field-description">Checking availability…</p>
-        <p id="ondevice-download-hint" class="field-description" style="display:none;">
+        <label data-i18n="ondevice_status_label">On-device AI status</label>
+        <p id="ondevice-status-text" class="field-description" data-i18n="ondevice_checking">Checking availability…</p>
+        <p id="ondevice-download-hint" class="field-description" style="display:none;" data-i18n="ondevice_download_hint">
           This is a one-time download — once it's ready, quizzes run fully offline with no further downloads.
         </p>
         <div id="ondevice-progress-row" style="display:none; align-items:center; gap:8px; margin-top:4px;">
           <span id="ondevice-spinner" class="spinner"></span>
           <progress id="ondevice-download-progress" value="0" max="100" style="flex:1;"></progress>
         </div>
-        <button id="ondevice-download-btn" type="button" class="secondary-btn" style="display:none; margin-top:6px;">Download model now</button>
+        <button id="ondevice-download-btn" type="button" class="secondary-btn" style="display:none; margin-top:6px;" data-i18n="ondevice_download_btn">Download model now</button>
       </div>
 
       <div id="ondevice-unavailable-banner" class="onboarding field" style="display:none; border-color: rgba(249,115,115,0.4);">
-        <h2 style="color:#f97373;">On-device AI isn't available here</h2>
-        <p class="field-description" style="margin-bottom:8px;">
+        <h2 style="color:#f97373;" data-i18n="ondevice_unavailable_title">On-device AI isn't available here</h2>
+        <p class="field-description" style="margin-bottom:8px;" data-i18n="ondevice_unavailable_desc">
           Your browser or device doesn't support Chrome's built-in AI. Use a cloud provider instead — it just needs a free API key.
         </p>
-        <button id="switch-to-cloud-btn" type="button" class="secondary-btn">Use Google Gemini instead</button>
+        <button id="switch-to-cloud-btn" type="button" class="secondary-btn" data-i18n="switch_to_cloud_btn">Use Google Gemini instead</button>
       </div>
 
       <div id="api-key-section" class="field">
-        <label for="ai-api-key">API key</label>
-        <p class="field-description">
+        <label for="ai-api-key" data-i18n="api_key_label">API key</label>
+        <p class="field-description" data-i18n-html="popup_api_key_desc">
           Stored locally via <code>chrome.storage</code>, only sent to your chosen provider.
         </p>
-        <input id="ai-api-key" type="password" autocomplete="off" placeholder="Paste your API key…" />
+        <input id="ai-api-key" type="password" autocomplete="off" placeholder="Paste your API key…" data-i18n-placeholder="api_key_placeholder" />
         <div class="api-key-actions">
-          <button id="test-connection-btn" type="button" class="secondary-btn">Test connection</button>
+          <button id="test-connection-btn" type="button" class="secondary-btn" data-i18n="test_connection_btn">Test connection</button>
           <span id="test-connection-result"></span>
-          <a id="get-api-key-link" class="link-btn" href="#" target="_blank" rel="noopener">Get a free API key →</a>
+          <a id="get-api-key-link" class="link-btn" href="#" target="_blank" rel="noopener" data-i18n="get_api_key_link">Get a free API key →</a>
         </div>
       </div>
 
       <div id="model-section" class="field">
-        <label for="ai-model">Model</label>
-        <p class="field-description">Enter your API key to load available models.</p>
+        <label for="ai-model" data-i18n="model_label">Model</label>
+        <p class="field-description" data-i18n="popup_model_desc">Enter your API key to load available models.</p>
         <div class="model-row">
           <select id="ai-model">
-            <option disabled selected>Enter an API key first</option>
+            <option disabled selected data-i18n="model_placeholder_initial">Enter an API key first</option>
           </select>
-          <button id="fetch-models-btn" type="button" style="flex-shrink:0;padding:6px 10px;font-size:0.75rem;box-shadow:none;">Fetch</button>
+          <button id="fetch-models-btn" type="button" style="flex-shrink:0;padding:6px 10px;font-size:0.75rem;box-shadow:none;" data-i18n="popup_fetch_models_btn">Fetch</button>
         </div>
       </div>
     </section>
 
     <section class="section">
-      <h2>Quiz behavior</h2>
+      <h2 data-i18n="quiz_behavior_heading">Quiz behavior</h2>
 
       <div class="field">
-        <label for="quiz-interval-minutes">Quiz interval</label>
-        <p class="field-description">How often to pause and show a quiz (minutes of watch time).</p>
+        <label for="quiz-interval-minutes" data-i18n="quiz_interval_label">Quiz interval</label>
+        <p class="field-description" data-i18n="popup_quiz_interval_desc">How often to pause and show a quiz (minutes of watch time).</p>
         <div class="inline">
           <input id="quiz-interval-minutes" type="number" min="1" max="60" step="1" />
-          <span>minutes</span>
+          <span data-i18n="minutes_unit">minutes</span>
         </div>
       </div>
 
       <div class="field">
-        <label for="quiz-num-questions">Questions per quiz</label>
-        <p class="field-description">Number of multiple-choice questions to generate.</p>
+        <label for="quiz-num-questions" data-i18n="quiz_num_questions_label">Questions per quiz</label>
+        <p class="field-description" data-i18n="popup_quiz_num_questions_desc">Number of multiple-choice questions to generate.</p>
         <input id="quiz-num-questions" type="number" min="1" max="10" step="1" />
       </div>
     </section>
