@@ -1,16 +1,18 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { buildPrompt, generateQuizQuestions, listModels } from "../src/aiClient";
-import { PROVIDER_GEMINI, PROVIDER_OPENAI, PROVIDER_ANTHROPIC, PROVIDER_GROK } from "../src/shared/types";
+import { PROVIDER_GEMINI, PROVIDER_OPENAI, PROVIDER_ANTHROPIC, PROVIDER_GROK, PROVIDER_ONDEVICE } from "../src/shared/types";
 
 vi.mock("../src/providers/gemini",    () => ({ generateQuizQuestions: vi.fn(), listModels: vi.fn() }));
 vi.mock("../src/providers/openai",    () => ({ generateQuizQuestions: vi.fn(), listModels: vi.fn() }));
 vi.mock("../src/providers/anthropic", () => ({ generateQuizQuestions: vi.fn(), listModels: vi.fn() }));
 vi.mock("../src/providers/grok",      () => ({ generateQuizQuestions: vi.fn(), listModels: vi.fn() }));
+vi.mock("../src/providers/ondevice",  () => ({ generateQuizQuestions: vi.fn() }));
 
 import * as gemini    from "../src/providers/gemini";
 import * as openai    from "../src/providers/openai";
 import * as anthropic from "../src/providers/anthropic";
 import * as grok      from "../src/providers/grok";
+import * as ondevice  from "../src/providers/ondevice";
 
 const TRANSCRIPT = "The video is about photosynthesis.";
 const API_KEY = "test-key";
@@ -59,6 +61,14 @@ describe("generateQuizQuestions — dispatch", () => {
     expect(grok.generateQuizQuestions).toHaveBeenCalledOnce();
   });
 
+  it("dispatches to the on-device provider with only the prompt", async () => {
+    await generateQuizQuestions(TRANSCRIPT, 3, API_KEY, MODEL, PROVIDER_ONDEVICE);
+    expect(ondevice.generateQuizQuestions).toHaveBeenCalledOnce();
+    const [prompt] = (ondevice.generateQuizQuestions as ReturnType<typeof vi.fn>).mock.calls[0] as [string];
+    expect(prompt).toContain(TRANSCRIPT);
+    expect((ondevice.generateQuizQuestions as ReturnType<typeof vi.fn>).mock.calls[0]).toHaveLength(1);
+  });
+
   it("passes the built prompt, apiKey, and model to the provider", async () => {
     await generateQuizQuestions(TRANSCRIPT, 2, API_KEY, MODEL, PROVIDER_OPENAI);
     const [prompt, key, model] = (openai.generateQuizQuestions as ReturnType<typeof vi.fn>).mock.calls[0] as [string, string, string];
@@ -97,5 +107,9 @@ describe("listModels — dispatch", () => {
 
   it("throws for an unknown provider", async () => {
     await expect(listModels("unknown" as never, API_KEY)).rejects.toThrow("Unknown provider");
+  });
+
+  it("throws for the on-device provider (no listable models)", async () => {
+    await expect(listModels(PROVIDER_ONDEVICE, API_KEY)).rejects.toThrow();
   });
 });

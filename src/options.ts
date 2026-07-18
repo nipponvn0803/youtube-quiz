@@ -1,23 +1,29 @@
 import { DEFAULT_SETTINGS_KEY } from "./background";
-import { AIProvider, ExtensionSettings } from "./shared/types";
+import { AIProvider, ExtensionSettings, PROVIDER_ONDEVICE } from "./shared/types";
 import { listModels, RECOMMENDED_MODELS } from "./aiClient";
 import { sanitizeNumber } from "./shared/utils";
+import { checkOnDeviceAvailability, downloadOnDeviceModel } from "./shared/ondeviceAvailability";
 
 const API_KEY_URLS: Record<AIProvider, string> = {
   gemini:    "https://aistudio.google.com/apikey",
   openai:    "https://platform.openai.com/api-keys",
   anthropic: "https://console.anthropic.com/settings/keys",
   grok:      "https://console.x.ai/",
+  ondevice:  "",
 };
 
 const DEFAULT_SETTINGS: ExtensionSettings = {
-  provider: "gemini",
+  provider: PROVIDER_ONDEVICE,
   apiKey: "",
-  model: "gemini-2.0-flash",
+  model: "",
   quizIntervalMinutes: 5,
   quizNumQuestions: 3,
   enabled: true,
 };
+
+let downloadPromise: Promise<void> | null = null;
+let downloadRetryCount = 0;
+const MAX_AUTO_DOWNLOAD_RETRIES = 2;
 
 function debounce<T extends (...args: unknown[]) => void>(fn: T, ms: number): T {
   let timer: ReturnType<typeof setTimeout>;
@@ -47,7 +53,118 @@ function getInputs() {
     statusEl:             $("status")                 as HTMLSpanElement,
     onboardingBanner:     $("onboarding-banner")      as HTMLDivElement,
     enabledToggle:        $("quiz-enabled")           as HTMLInputElement,
+    apiKeySection:        $("api-key-section")             as HTMLDivElement,
+    modelSection:         $("model-section")               as HTMLDivElement,
+    ondeviceStatus:       $("ondevice-status")              as HTMLDivElement,
+    ondeviceStatusText:   $("ondevice-status-text")         as HTMLParagraphElement,
+    ondeviceDownloadHint: $("ondevice-download-hint")       as HTMLParagraphElement,
+    ondeviceProgressRow:  $("ondevice-progress-row")        as HTMLDivElement,
+    ondeviceProgress:     $("ondevice-download-progress")   as HTMLProgressElement,
+    ondeviceDownloadBtn:  $("ondevice-download-btn")         as HTMLButtonElement,
+    ondeviceUnavailableBanner: $("ondevice-unavailable-banner") as HTMLDivElement,
+    switchToCloudBtn:     $("switch-to-cloud-btn")           as HTMLButtonElement,
   };
+}
+
+function applyProviderVisibility(provider: AIProvider) {
+  const { apiKeySection, modelSection, ondeviceStatus, ondeviceUnavailableBanner } = getInputs();
+  const isOnDevice = provider === PROVIDER_ONDEVICE;
+
+  apiKeySection.style.display = isOnDevice ? "none" : "";
+  modelSection.style.display = isOnDevice ? "none" : "";
+  ondeviceStatus.style.display = isOnDevice ? "" : "none";
+
+  if (!isOnDevice) {
+    ondeviceUnavailableBanner.style.display = "none";
+  } else {
+    void refreshOnDeviceStatus();
+  }
+}
+
+async function refreshOnDeviceStatus() {
+  const { ondeviceStatusText, ondeviceDownloadHint, ondeviceProgressRow, ondeviceDownloadBtn, ondeviceUnavailableBanner } = getInputs();
+  const availability = await checkOnDeviceAvailability();
+
+  if (availability === "available") {
+    ondeviceStatusText.textContent = "✓ Ready — no download needed.";
+    ondeviceDownloadHint.style.display = "none";
+    ondeviceProgressRow.style.display = "none";
+    ondeviceDownloadBtn.style.display = "none";
+    ondeviceUnavailableBanner.style.display = "none";
+    return;
+  }
+
+  if (availability === "downloadable") {
+    ondeviceStatusText.textContent = "The on-device model hasn't been downloaded yet.";
+    ondeviceDownloadHint.style.display = "";
+    ondeviceProgressRow.style.display = "none";
+    ondeviceDownloadBtn.style.display = "";
+    ondeviceDownloadBtn.disabled = false;
+    ondeviceDownloadBtn.textContent = "Download model now";
+    ondeviceUnavailableBanner.style.display = "none";
+    return;
+  }
+
+  if (availability === "downloading") {
+    ondeviceStatusText.textContent = "Downloading the on-device model…";
+    ondeviceDownloadHint.style.display = "";
+    ondeviceProgressRow.style.display = "flex";
+    ondeviceDownloadBtn.style.display = "none";
+    ondeviceUnavailableBanner.style.display = "none";
+    // A download is already in flight (e.g. started in an earlier page load) but no
+    // listener is currently attached to it. Chrome has no separate "query progress"
+    // API — the only way to observe progress is a `monitor` passed into `create()`,
+    // and calling `create()` again joins the existing download rather than starting
+    // a new one. Re-attach so the bar actually moves instead of sitting at 0 until
+    // availability() eventually flips to "available" on its own.
+    void startOnDeviceDownload();
+    return;
+  }
+
+  // "unsupported" | "unavailable"
+  ondeviceStatusText.textContent = "On-device AI isn't available on this browser or device.";
+  ondeviceDownloadHint.style.display = "none";
+  ondeviceProgressRow.style.display = "none";
+  ondeviceDownloadBtn.style.display = "none";
+  ondeviceUnavailableBanner.style.display = "block";
+}
+
+async function startOnDeviceDownload(isManualRetry = false): Promise<void> {
+  if (downloadPromise) return downloadPromise;
+  if (isManualRetry) downloadRetryCount = 0;
+
+  const { ondeviceProgress, ondeviceProgressRow, ondeviceDownloadHint, ondeviceDownloadBtn } = getInputs();
+  ondeviceProgress.value = 0;
+  ondeviceProgressRow.style.display = "flex";
+  ondeviceDownloadHint.style.display = "";
+  ondeviceDownloadBtn.style.display = "none";
+
+  downloadPromise = (async () => {
+    try {
+      await downloadOnDeviceModel((fraction) => {
+        getInputs().ondeviceProgress.value = fraction * 100;
+      });
+      downloadRetryCount = 0;
+      await refreshOnDeviceStatus();
+    } catch (err) {
+      downloadRetryCount += 1;
+      if (downloadRetryCount > MAX_AUTO_DOWNLOAD_RETRIES) {
+        const { ondeviceStatusText, ondeviceDownloadHint: hint, ondeviceProgressRow: row, ondeviceDownloadBtn: btn } = getInputs();
+        row.style.display = "none";
+        hint.style.display = "none";
+        ondeviceStatusText.textContent = `Download failed: ${String(err)}`;
+        btn.style.display = "";
+        btn.disabled = false;
+        btn.textContent = "Retry download";
+      } else {
+        await refreshOnDeviceStatus();
+      }
+    } finally {
+      downloadPromise = null;
+    }
+  })();
+
+  return downloadPromise;
 }
 
 function updateApiKeyLink(provider: AIProvider) {
@@ -128,7 +245,8 @@ async function loadSettings() {
       providerSelect.value = provider;
       apiKeyInput.value = apiKey;
       updateApiKeyLink(provider);
-      if (!apiKey) getInputs().onboardingBanner.style.display = "block";
+      applyProviderVisibility(provider);
+      if (provider !== PROVIDER_ONDEVICE && !apiKey) getInputs().onboardingBanner.style.display = "block";
       quizIntervalInput.value = String(s.quizIntervalMinutes || DEFAULT_SETTINGS.quizIntervalMinutes);
       quizNumQuestionsInput.value = String(s.quizNumQuestions || DEFAULT_SETTINGS.quizNumQuestions);
       getInputs().enabledToggle.checked = s.enabled ?? true;
@@ -176,13 +294,29 @@ document.addEventListener("DOMContentLoaded", () => {
     setStatus("Failed to load settings.", "error");
   });
 
-  const { providerSelect, apiKeyInput, testConnectionBtn, fetchModelsBtn, modelSelect, quizIntervalInput, quizNumQuestionsInput, enabledToggle } = getInputs();
+  const { providerSelect, apiKeyInput, testConnectionBtn, fetchModelsBtn, modelSelect, quizIntervalInput, quizNumQuestionsInput, enabledToggle, ondeviceDownloadBtn, switchToCloudBtn } = getInputs();
 
   const debouncedSave = debounce(() => { void saveSettings(); }, 600);
 
   providerSelect.addEventListener("change", () => {
-    updateApiKeyLink(providerSelect.value as AIProvider);
+    const provider = providerSelect.value as AIProvider;
+    updateApiKeyLink(provider);
+    applyProviderVisibility(provider);
     modelSelect.innerHTML = '<option disabled selected>Click "Fetch models"</option>';
+    void saveSettings();
+  });
+
+  ondeviceDownloadBtn.addEventListener("click", () => {
+    const { ondeviceDownloadBtn: btn } = getInputs();
+    btn.disabled = true;
+    btn.textContent = "Downloading…";
+    void startOnDeviceDownload(true);
+  });
+
+  switchToCloudBtn.addEventListener("click", () => {
+    providerSelect.value = "gemini";
+    updateApiKeyLink("gemini");
+    applyProviderVisibility("gemini");
     void saveSettings();
   });
 

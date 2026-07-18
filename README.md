@@ -6,7 +6,8 @@ A Chrome extension (Manifest V3) that pauses YouTube videos at configurable inte
 
 - Automatically pauses videos and presents a quiz at a set interval (e.g. every 5 minutes)
 - Questions are generated from the actual video transcript, covering only what you've watched so far
-- Supports multiple AI providers: **Google Gemini**, **OpenAI**, **Anthropic Claude**, and **xAI Grok**
+- Works out of the box with **Chrome's built-in on-device AI** (Gemini Nano) — no signup, no API key, nothing leaves your machine
+- Also supports bringing your own key for **Google Gemini**, **OpenAI**, **Anthropic Claude**, or **xAI Grok**, if you want a different model
 - Configurable number of questions per quiz
 - Questions are pre-generated 20 seconds before the quiz is due, so the dialog appears instantly
 - Handles YouTube's SPA navigation — resets cleanly when you switch videos
@@ -16,8 +17,7 @@ A Chrome extension (Manifest V3) that pauses YouTube videos at configurable inte
 ### Requirements
 
 - Node.js (for building)
-- A Chrome-based browser
-- An API key for one of the supported AI providers
+- Chrome 138 or later (for the built-in on-device AI; older Chrome or non-Chrome browsers will need a cloud provider API key instead)
 
 ### Build
 
@@ -40,22 +40,23 @@ Open the extension's options page (click the extension icon → *Options*, or go
 
 | Setting | Description |
 |---------|-------------|
-| Provider | AI provider to use for generating questions |
-| API key | Your key for the selected provider (stored locally via `chrome.storage`) |
-| Model | Choose from models available for your API key |
+| Provider | AI provider to use for generating questions — defaults to **On-device**, no key required |
+| API key | Only shown for cloud providers; your key for the selected provider (stored locally via `chrome.storage`) |
+| Model | Only shown for cloud providers; choose from models available for your API key |
 | Quiz interval | How often to pause and quiz (in minutes of watch time) |
 | Questions per quiz | Number of multiple-choice questions each time (1–10) |
 
-### Getting an API key
+### Provider options
 
 | Provider | Notes |
 |----------|-------|
+| On-device (default) | Chrome's built-in Gemini Nano model. No key, no signup, no network calls. Requires Chrome 138+; the options page shows a one-time model download with progress, and falls back to prompting for a cloud provider if unsupported. |
 | Google Gemini | Free tier available with a Google account |
 | OpenAI | Paid — requires an OpenAI account |
 | Anthropic Claude | Paid — requires an Anthropic account |
 | xAI Grok | Requires an xAI account |
 
-Use the **Get a free API key →** link in the options page after selecting a provider.
+For cloud providers, use the **Get a free API key →** link in the options page after selecting one.
 
 ## Architecture
 
@@ -67,10 +68,12 @@ Use the **Get a free API key →** link in the options page after selecting a pr
 | `youtubeQuizContent.ts` | Content script — isolated world | Main runtime: caches transcript, tracks video position, pre-generates questions, pauses video, renders quiz dialog |
 | `background.ts` | Service worker | Receives `REQUEST_QUIZ` messages, reads settings, dispatches to the correct AI provider, returns results |
 | `aiClient.ts` | Service worker | Builds the prompt and delegates to the selected provider module |
-| `providers/` | Service worker | One module per provider (Gemini, OpenAI, Anthropic, Grok) |
-| `options.ts` | Options page | Reads/writes `ExtensionSettings` to `chrome.storage.sync` |
+| `providers/` | Service worker | One module per provider (Gemini, OpenAI, Anthropic, Grok, on-device) |
+| `options.ts` | Options page | Reads/writes `ExtensionSettings` to `chrome.storage.sync`; drives the on-device availability/download UI |
 | `shared/types.ts` | Shared | `QuizQuestion`, `ExtensionSettings`, and message types |
 | `shared/utils.ts` | Shared | `parseQuizQuestions` (JSON/markdown parser) and `sanitizeNumber` |
+| `shared/ondeviceAvailability.ts` | Shared | Feature-detects and checks Chrome's `LanguageModel` API, and triggers the on-device model download |
+| `shared/ondeviceTypes.d.ts` | Shared | Ambient type declarations for the `LanguageModel` global (Chrome's Prompt API) |
 
 ### Message flow
 

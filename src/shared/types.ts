@@ -33,12 +33,14 @@ export const PROVIDER_GEMINI    = "gemini"    as const;
 export const PROVIDER_OPENAI    = "openai"    as const;
 export const PROVIDER_ANTHROPIC = "anthropic" as const;
 export const PROVIDER_GROK      = "grok"      as const;
+export const PROVIDER_ONDEVICE  = "ondevice"  as const;
 
 export type AIProvider =
   | typeof PROVIDER_GEMINI
   | typeof PROVIDER_OPENAI
   | typeof PROVIDER_ANTHROPIC
-  | typeof PROVIDER_GROK;
+  | typeof PROVIDER_GROK
+  | typeof PROVIDER_ONDEVICE;
 
 export type ExtensionSettings = {
   provider: AIProvider;

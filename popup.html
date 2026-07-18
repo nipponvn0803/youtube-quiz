@@ -216,6 +216,19 @@
         border-radius: 4px;
       }
       .field + .field { margin-top: 10px; }
+      .spinner {
+        display: inline-block;
+        width: 12px;
+        height: 12px;
+        flex-shrink: 0;
+        border: 2px solid rgba(148, 163, 184, 0.35);
+        border-top-color: #38bdf8;
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+      }
+      @keyframes spin {
+        to { transform: rotate(360deg); }
+      }
     </style>
   </head>
   <body>
@@ -248,6 +261,7 @@
       <div class="field">
         <label for="ai-provider">Provider</label>
         <select id="ai-provider">
+          <option value="ondevice" selected>On-device (Free, built-in, no signup) — Recommended</option>
           <option value="gemini">Google Gemini</option>
           <option value="openai">OpenAI</option>
           <option value="anthropic">Anthropic Claude</option>
@@ -255,7 +269,28 @@
         </select>
       </div>
 
-      <div class="field">
+      <div id="ondevice-status" class="field" style="display:none">
+        <label>On-device AI status</label>
+        <p id="ondevice-status-text" class="field-description">Checking availability…</p>
+        <p id="ondevice-download-hint" class="field-description" style="display:none;">
+          This is a one-time download — once it's ready, quizzes run fully offline with no further downloads.
+        </p>
+        <div id="ondevice-progress-row" style="display:none; align-items:center; gap:8px; margin-top:4px;">
+          <span id="ondevice-spinner" class="spinner"></span>
+          <progress id="ondevice-download-progress" value="0" max="100" style="flex:1;"></progress>
+        </div>
+        <button id="ondevice-download-btn" type="button" class="secondary-btn" style="display:none; margin-top:6px;">Download model now</button>
+      </div>
+
+      <div id="ondevice-unavailable-banner" class="onboarding field" style="display:none; border-color: rgba(249,115,115,0.4);">
+        <h2 style="color:#f97373;">On-device AI isn't available here</h2>
+        <p class="field-description" style="margin-bottom:8px;">
+          Your browser or device doesn't support Chrome's built-in AI. Use a cloud provider instead — it just needs a free API key.
+        </p>
+        <button id="switch-to-cloud-btn" type="button" class="secondary-btn">Use Google Gemini instead</button>
+      </div>
+
+      <div id="api-key-section" class="field">
         <label for="ai-api-key">API key</label>
         <p class="field-description">
           Stored locally via <code>chrome.storage</code>, only sent to your chosen provider.
@@ -268,7 +303,7 @@
         </div>
       </div>
 
-      <div class="field">
+      <div id="model-section" class="field">
         <label for="ai-model">Model</label>
         <p class="field-description">Enter your API key to load available models.</p>
         <div class="model-row">

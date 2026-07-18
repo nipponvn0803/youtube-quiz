@@ -1,9 +1,9 @@
-import { AIProvider, ExtensionSettings, QuizRequestMessage, QuizResponseMessage } from "./shared/types";
+import { AIProvider, ExtensionSettings, PROVIDER_ONDEVICE, QuizRequestMessage, QuizResponseMessage } from "./shared/types";
 import { generateQuizQuestions } from "./aiClient";
 
 export const DEFAULT_SETTINGS_KEY = "settings";
 
-const DEFAULT_PROVIDER: AIProvider = "gemini";
+const DEFAULT_PROVIDER: AIProvider = PROVIDER_ONDEVICE;
 const DEFAULT_MODEL = "gemini-2.0-flash";
 
 async function getSettings(): Promise<ExtensionSettings | null> {
