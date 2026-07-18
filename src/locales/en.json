@@ -89,6 +89,7 @@
   "continue_watching_btn": "Continue watching →",
   "skip_quiz_btn": "Skip quiz",
   "skip_btn": "Skip",
+  "close_btn": "Close",
   "quiz_in_seconds": "Quiz in {seconds}s",
   "score_display": "Score: {correct} / {total}",
   "correct_feedback": "Correct!",

@@ -5,12 +5,12 @@
   "language_en": "English",
   "language_vi": "Tiếng Việt",
 
-  "popup_subtitle": "Cấu hình nhà cung cấp AI và các thiết lập câu đố.",
-  "options_subtitle": "Cấu hình nhà cung cấp AI và thời điểm hiển thị câu đố.",
+  "popup_subtitle": "Cấu hình nhà cung cấp AI và các thiết lập câu hỏi.",
+  "options_subtitle": "Cấu hình nhà cung cấp AI và thời điểm hiển thị câu hỏi.",
 
-  "quiz_enabled_label": "Bật câu đố",
-  "popup_quiz_enabled_sub": "Tắt để xem video mà không có câu đố",
-  "options_quiz_enabled_sub": "Tạm tắt câu đố cho phiên xem hiện tại",
+  "quiz_enabled_label": "Bật câu hỏi",
+  "popup_quiz_enabled_sub": "Tắt để xem video mà không có câu hỏi",
+  "options_quiz_enabled_sub": "Tạm tắt câu hỏi cho phiên xem hiện tại",
 
   "popup_onboarding_title": "Bắt đầu chỉ với 3 bước",
   "options_onboarding_title": "Chào mừng! Bắt đầu chỉ với 3 bước",
@@ -35,7 +35,7 @@
   "ondevice_not_downloaded": "Mô hình trên thiết bị chưa được tải xuống.",
   "ondevice_downloading": "Đang tải mô hình trên thiết bị…",
   "ondevice_unsupported": "AI trên thiết bị không khả dụng trên trình duyệt hoặc thiết bị này.",
-  "ondevice_download_hint": "Đây là lượt tải xuống một lần — khi đã sẵn sàng, câu đố sẽ chạy hoàn toàn ngoại tuyến mà không cần tải thêm.",
+  "ondevice_download_hint": "Đây là lượt tải xuống một lần — khi đã sẵn sàng, câu hỏi sẽ chạy hoàn toàn ngoại tuyến mà không cần tải thêm.",
   "ondevice_download_btn": "Tải mô hình ngay",
   "ondevice_downloading_btn": "Đang tải…",
   "ondevice_retry_btn": "Thử tải lại",
@@ -66,10 +66,10 @@
   "options_fetch_models_btn": "Tải mô hình",
   "fetch_models_loading": "Đang tải…",
 
-  "quiz_behavior_heading": "Hành vi câu đố",
-  "quiz_interval_label": "Khoảng thời gian câu đố",
-  "popup_quiz_interval_desc": "Tần suất tạm dừng và hiển thị câu đố (số phút xem video).",
-  "options_quiz_interval_desc": "Tần suất tạm dừng và hiển thị câu đố, tính theo số phút xem video.",
+  "quiz_behavior_heading": "Hành vi câu hỏi",
+  "quiz_interval_label": "Khoảng thời gian câu hỏi",
+  "popup_quiz_interval_desc": "Tần suất tạm dừng và hiển thị câu hỏi (số phút xem video).",
+  "options_quiz_interval_desc": "Tần suất tạm dừng và hiển thị câu hỏi, tính theo số phút xem video.",
   "minutes_unit": "phút",
   "quiz_num_questions_label": "Số câu hỏi mỗi lần",
   "popup_quiz_num_questions_desc": "Số câu hỏi trắc nghiệm cần tạo.",
@@ -82,14 +82,15 @@
   "status_load_error": "Không thể tải thiết lập.",
   "status_fetch_models_error": "Không thể tải mô hình: {error}",
 
-  "quiz_title": "Câu Đố Nhanh",
-  "quiz_generating": "Đang tạo câu đố của bạn…",
-  "quiz_generation_error": "Không thể tạo câu đố: {message}",
+  "quiz_title": "Câu hỏi Nhanh",
+  "quiz_generating": "Đang tạo câu hỏi của bạn…",
+  "quiz_generation_error": "Không thể tạo câu hỏi: {message}",
   "quiz_no_transcript_error": "Không có bản ghi lời thoại. Hãy đảm bảo video có phụ đề rồi thử lại.",
   "continue_watching_btn": "Tiếp tục xem →",
-  "skip_quiz_btn": "Bỏ qua câu đố",
+  "skip_quiz_btn": "Bỏ qua câu hỏi",
   "skip_btn": "Bỏ qua",
-  "quiz_in_seconds": "Câu đố sau {seconds}s",
+  "close_btn": "Đóng",
+  "quiz_in_seconds": "Câu hỏi sau {seconds}s",
   "score_display": "Điểm: {correct} / {total}",
   "correct_feedback": "Chính xác!",
   "incorrect_feedback": "Chưa đúng. {explanation}",
@@ -97,6 +98,6 @@
   "auto_resume_label": "Tự động tiếp tục sau khi trả lời",
 
   "badge_title": "YouTube Quiz",
-  "badge_pending_desc": "Mở rộng phần mô tả và bấm<br><strong>Hiện bản ghi</strong> để bật câu đố",
-  "badge_ready_desc": "Đã tải bản ghi — câu đố đã sẵn sàng"
+  "badge_pending_desc": "Mở rộng phần mô tả và bấm<br><strong>Hiện bản ghi</strong> để bật câu hỏi",
+  "badge_ready_desc": "Đã tải bản ghi — câu hỏi đã sẵn sàng"
 }

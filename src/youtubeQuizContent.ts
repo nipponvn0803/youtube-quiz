@@ -345,7 +345,10 @@ function showQuizOrLoading(currentTime: number): void {
   if (state.isPreGenerating) {
     // Wait for in-flight pre-generation to finish
     const poll = setInterval(() => {
-      if (state.preGeneratedQuestions) {
+      if (!state.quizShowing) {
+        // User manually closed the loading dialog — stop waiting
+        clearInterval(poll);
+      } else if (state.preGeneratedQuestions) {
         clearInterval(poll);
         showQuizDialog(state.preGeneratedQuestions);
       } else if (!state.isPreGenerating) {
@@ -380,12 +383,16 @@ async function generateAndShow(currentTime: number): Promise<void> {
 
   try {
     const res = (await chrome.runtime.sendMessage(req)) as QuizResponseMessage;
+    // User may have closed the loading dialog while the request was in flight —
+    // don't pop a dialog back up over the resumed video
+    if (!state.quizShowing) return;
     if (res.type === "QUIZ_SUCCESS") {
       showQuizDialog(res.questions);
     } else {
       showErrorDialog(res.error);
     }
   } catch (err) {
+    if (!state.quizShowing) return;
     showErrorDialog(err instanceof Error ? err.message : String(err));
   }
 }
@@ -478,6 +485,8 @@ function showTranscriptBadge(status: "pending" | "ready"): void {
       setTimeout(() => el.remove(), 300);
     }, 3000);
   }
+
+  el.appendChild(createCloseButton(() => el.remove(), { small: true }));
 
   document.body.appendChild(el);
 }
@@ -583,6 +592,7 @@ function createOverlay(): HTMLDivElement {
 function createDialog(): HTMLDivElement {
   const el = document.createElement("div");
   el.style.cssText = `
+    position: relative;
     background: #0f172a;
     border: 1px solid rgba(148, 163, 184, 0.3);
     border-radius: 16px;
@@ -595,6 +605,50 @@ function createDialog(): HTMLDivElement {
     color: #e5e7eb;
   `;
   return el;
+}
+
+// "×" close button anchored to the top-right of its (position: relative) parent.
+// `small` variant is used on the compact transcript badge.
+function createCloseButton(onClose: () => void, opts: { small?: boolean } = {}): HTMLButtonElement {
+  const size = opts.small ? 20 : 30;
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.innerHTML = "&times;";
+  btn.setAttribute("aria-label", t("close_btn"));
+  btn.title = t("close_btn");
+  btn.style.cssText = `
+    position: absolute;
+    top: ${opts.small ? 6 : 12}px;
+    right: ${opts.small ? 6 : 14}px;
+    width: ${size}px;
+    height: ${size}px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: none;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.06);
+    color: #9ca3af;
+    font-size: ${opts.small ? 1.1 : 1.5}rem;
+    line-height: 1;
+    cursor: pointer;
+    pointer-events: auto;
+    transition: background 0.15s, color 0.15s;
+  `;
+  btn.addEventListener("mouseenter", () => {
+    btn.style.background = "rgba(255, 255, 255, 0.14)";
+    btn.style.color = "#e5e7eb";
+  });
+  btn.addEventListener("mouseleave", () => {
+    btn.style.background = "rgba(255, 255, 255, 0.06)";
+    btn.style.color = "#9ca3af";
+  });
+  btn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    onClose();
+  });
+  return btn;
 }
 
 function showLoadingDialog(): void {
@@ -611,6 +665,7 @@ function showLoadingDialog(): void {
   msg.style.cssText = `margin: 0; font-size: 1.2rem; color: #9ca3af;`;
 
   dialog.append(title, msg);
+  dialog.appendChild(createCloseButton(dismissAndResume));
   overlay.appendChild(dialog);
   document.body.appendChild(overlay);
 }
@@ -636,6 +691,7 @@ function showErrorDialog(message: string): void {
   btn.addEventListener("click", dismissAndResume);
 
   dialog.append(title, msg, btn);
+  dialog.appendChild(createCloseButton(dismissAndResume));
   overlay.appendChild(dialog);
   document.body.appendChild(overlay);
 }
@@ -645,9 +701,9 @@ function showQuizDialog(questions: QuizQuestion[]): void {
   const overlay = createOverlay();
   const dialog = createDialog();
 
-  // Header: title + live score
+  // Header: title + live score. Right padding keeps the score clear of the "×".
   const header = document.createElement("div");
-  header.style.cssText = `display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;`;
+  header.style.cssText = `display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; padding-right: 34px;`;
 
   const title = document.createElement("span");
   title.textContent = t("quiz_title");
@@ -792,6 +848,7 @@ function showQuizDialog(questions: QuizQuestion[]): void {
   skipRow.appendChild(skipBtn);
   dialog.appendChild(skipRow);
 
+  dialog.appendChild(createCloseButton(dismissAndResume));
   overlay.appendChild(dialog);
   document.body.appendChild(overlay);
 }
