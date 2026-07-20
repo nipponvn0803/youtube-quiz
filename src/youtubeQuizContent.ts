@@ -1,5 +1,11 @@
 import { ExtensionSettings, LOCALE_EN, QuizQuestion, QuizRequestMessage, QuizResponseMessage } from "./shared/types";
 import { setLocale, t } from "./shared/i18n";
+import {
+  TranscriptSegment,
+  getTranscriptUpTo,
+  nextQuizWindow,
+  shouldPreGenerate,
+} from "./shared/quizScheduling";
 
 // Must match DEFAULT_SETTINGS_KEY in background.ts
 const SETTINGS_KEY = "settings";
@@ -13,6 +19,9 @@ interface SessionState {
   preGeneratedQuestions: QuizQuestion[] | null;
   isPreGenerating: boolean;
   preGenerationTriggered: boolean;
+  // Bumped on every reschedule; an in-flight request whose epoch no longer
+  // matches was generated for a window the viewer has since left
+  preGenerationEpoch: number;
   nextQuizVideoTime: number;
   intervalSeconds: number;
   numQuestions: number;
@@ -31,6 +40,7 @@ function freshState(): SessionState {
     preGeneratedQuestions: null,
     isPreGenerating: false,
     preGenerationTriggered: false,
+    preGenerationEpoch: 0,
     nextQuizVideoTime: Infinity,
     intervalSeconds: 60,
     numQuestions: 3,
@@ -51,8 +61,6 @@ let state = freshState();
 // ---------------------------------------------------------------------------
 
 type RawNode = Record<string, unknown>;
-
-type TranscriptSegment = { startMs: number; text: string };
 
 // Normalized transcript, sorted by startMs, so quiz generation can filter by
 // time regardless of which endpoint it came from
@@ -136,19 +144,6 @@ function extractTimedtextSegments(data: RawNode): TranscriptSegment[] | null {
     if (text) out.push({ startMs: Number(ev.tStartMs ?? 0), text });
   }
   return out.length ? out : null;
-}
-
-function getTranscriptUpTo(upToSeconds: number, fromSeconds = 0): string | null {
-  if (!transcriptSegments) return null;
-  const upToMs = upToSeconds * 1000;
-  const fromMs = fromSeconds * 1000;
-  const lines: string[] = [];
-  for (const seg of transcriptSegments) {
-    if (seg.startMs > upToMs) break;
-    if (seg.startMs < fromMs) continue;
-    lines.push(seg.text);
-  }
-  return lines.length ? lines.join(" ") : null;
 }
 
 // ---------------------------------------------------------------------------
@@ -245,10 +240,17 @@ async function tryAutoOpenTranscript(): Promise<boolean> {
 // Quiz scheduling
 // ---------------------------------------------------------------------------
 
+// `fromVideoTime` starts the next quiz window: questions cover the transcript
+// between it and the quiz itself, so it has to move with reschedules (seek,
+// skip) or the window would grow past a single interval.
 function scheduleNextQuiz(fromVideoTime: number): void {
-  state.nextQuizVideoTime = fromVideoTime + state.intervalSeconds;
+  const window = nextQuizWindow(fromVideoTime, state.intervalSeconds);
+  state.lastQuizCheckpointSeconds = window.checkpointSeconds;
+  state.nextQuizVideoTime = window.quizVideoTime;
   state.preGeneratedQuestions = null;
   state.preGenerationTriggered = false;
+  state.isPreGenerating = false;
+  state.preGenerationEpoch++;
   console.log(
     "youtube-quiz: next quiz at video time",
     state.nextQuizVideoTime.toFixed(1),
@@ -273,10 +275,16 @@ function onTimerTick(): void {
   const t = video.currentTime;
   const timeToQuiz = state.nextQuizVideoTime - t;
 
-  // Trigger pre-generation 20 seconds before quiz
-  if (timeToQuiz <= 20 && !state.preGenerationTriggered) {
+  if (
+    shouldPreGenerate({
+      alreadyTriggered: state.preGenerationTriggered,
+      segments: transcriptSegments,
+      quizVideoTime: state.nextQuizVideoTime,
+      currentTime: t,
+    })
+  ) {
     state.preGenerationTriggered = true;
-    void preGenerateQuiz(t);
+    void preGenerateQuiz();
   }
 
   // Show countdown in last 10 seconds
@@ -298,29 +306,43 @@ function onTimerTick(): void {
   state.lastKnownTime = t;
 }
 
-async function preGenerateQuiz(currentTime: number): Promise<void> {
+async function preGenerateQuiz(): Promise<void> {
   const videoId = getVideoId();
-  const transcript = getTranscriptUpTo(currentTime, state.lastQuizCheckpointSeconds);
+  // Cover the whole window the viewer will have watched by the time the quiz
+  // appears, not just what has played so far
+  const quizTime = state.nextQuizVideoTime;
+  const transcript = getTranscriptUpTo(transcriptSegments, quizTime, state.lastQuizCheckpointSeconds);
 
   if (!videoId || !transcript) {
     console.log("youtube-quiz: transcript not ready at pre-generation time, will generate on demand");
     return;
   }
 
-  console.log("youtube-quiz: pre-generating quiz at", currentTime.toFixed(1), "s");
+  console.log(
+    "youtube-quiz: pre-generating quiz for",
+    state.lastQuizCheckpointSeconds.toFixed(1),
+    "-",
+    quizTime.toFixed(1),
+    "s",
+  );
   state.isPreGenerating = true;
+  const epoch = state.preGenerationEpoch;
 
   const req: QuizRequestMessage = {
     type: "REQUEST_QUIZ",
     videoId,
     videoUrl: window.location.href,
     transcript,
-    currentTimeSeconds: currentTime,
+    currentTimeSeconds: quizTime,
     numQuestions: state.numQuestions,
   };
 
   try {
     const res = (await chrome.runtime.sendMessage(req)) as QuizResponseMessage;
+    if (epoch !== state.preGenerationEpoch) {
+      console.log("youtube-quiz: discarding pre-generated quiz for a superseded window");
+      return;
+    }
     if (res.type === "QUIZ_SUCCESS") {
       state.preGeneratedQuestions = res.questions;
       console.log("youtube-quiz: pre-generated", res.questions.length, "questions");
@@ -330,7 +352,7 @@ async function preGenerateQuiz(currentTime: number): Promise<void> {
   } catch (err) {
     console.error("youtube-quiz: pre-generation failed:", err);
   } finally {
-    state.isPreGenerating = false;
+    if (epoch === state.preGenerationEpoch) state.isPreGenerating = false;
   }
 }
 
@@ -365,7 +387,7 @@ function showQuizOrLoading(currentTime: number): void {
 
 async function generateAndShow(currentTime: number): Promise<void> {
   const videoId = getVideoId();
-  const transcript = getTranscriptUpTo(currentTime, state.lastQuizCheckpointSeconds);
+  const transcript = getTranscriptUpTo(transcriptSegments, currentTime, state.lastQuizCheckpointSeconds);
 
   if (!videoId || !transcript) {
     showErrorDialog(t("quiz_no_transcript_error"));
@@ -567,7 +589,6 @@ function dismissAndResume(): void {
   state.quizShowing = false;
   const video = getVideo();
   if (video) {
-    state.lastQuizCheckpointSeconds = video.currentTime;
     scheduleNextQuiz(video.currentTime);
     void video.play();
   }
