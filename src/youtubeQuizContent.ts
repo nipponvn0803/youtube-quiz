@@ -6,6 +6,11 @@ import {
   nextQuizWindow,
   shouldPreGenerate,
 } from "./shared/quizScheduling";
+import {
+  RawNode,
+  extractInnerTubeSegments,
+  extractTimedtextSegments,
+} from "./shared/transcriptParsing";
 
 // Must match DEFAULT_SETTINGS_KEY in background.ts
 const SETTINGS_KEY = "settings";
@@ -60,8 +65,6 @@ let state = freshState();
 // Transcript (forwarded from youtubeInterceptor.ts via CustomEvent)
 // ---------------------------------------------------------------------------
 
-type RawNode = Record<string, unknown>;
-
 // Normalized transcript, sorted by startMs, so quiz generation can filter by
 // time regardless of which endpoint it came from
 let transcriptSegments: TranscriptSegment[] | null = null;
@@ -88,63 +91,6 @@ window.addEventListener("yt-quiz-transcript-data", (event) => {
     console.log("youtube-quiz:", detail.endpoint, "response had no transcript segments");
   }
 });
-
-// get_transcript and get_panel wrap the same transcriptSegmentListRenderer in
-// different outer structures (and YouTube reshuffles them over time), so
-// search for it recursively instead of hard-coding a path.
-function findInitialSegments(node: unknown): RawNode[] | null {
-  if (!node || typeof node !== "object") return null;
-  if (Array.isArray(node)) {
-    for (const item of node) {
-      const found = findInitialSegments(item);
-      if (found) return found;
-    }
-    return null;
-  }
-  const obj = node as RawNode;
-  const list = (obj.transcriptSegmentListRenderer as RawNode | undefined)?.initialSegments;
-  if (Array.isArray(list)) return list as RawNode[];
-  for (const value of Object.values(obj)) {
-    const found = findInitialSegments(value);
-    if (found) return found;
-  }
-  return null;
-}
-
-function extractInnerTubeSegments(data: RawNode): TranscriptSegment[] | null {
-  const initialSegments = findInitialSegments(data);
-  if (!initialSegments) return null;
-
-  const out: TranscriptSegment[] = [];
-  for (const seg of initialSegments) {
-    // Chapter headings use transcriptSectionHeaderRenderer — skip those
-    const r = seg.transcriptSegmentRenderer as RawNode | undefined;
-    if (!r) continue;
-    const runs = (r.snippet as RawNode | undefined)?.runs as
-      | Array<{ text: string }>
-      | undefined;
-    const text = runs?.map((x) => x.text).join("").trim();
-    if (text) out.push({ startMs: Number(r.startMs ?? 0), text });
-  }
-  return out.length ? out : null;
-}
-
-// timedtext json3 shape: { events: [{ tStartMs, segs: [{ utf8 }] }] }
-// Events without segs are styling/window markers; newline-only segs separate
-// rolling caption lines.
-function extractTimedtextSegments(data: RawNode): TranscriptSegment[] | null {
-  const events = data.events as RawNode[] | undefined;
-  if (!Array.isArray(events)) return null;
-
-  const out: TranscriptSegment[] = [];
-  for (const ev of events) {
-    const segs = ev.segs as Array<{ utf8?: string }> | undefined;
-    if (!segs) continue;
-    const text = segs.map((s) => s.utf8 ?? "").join("").replace(/\s+/g, " ").trim();
-    if (text) out.push({ startMs: Number(ev.tStartMs ?? 0), text });
-  }
-  return out.length ? out : null;
-}
 
 // ---------------------------------------------------------------------------
 // Settings
