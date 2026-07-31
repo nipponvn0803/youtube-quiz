@@ -7,7 +7,7 @@ A Chrome extension (Manifest V3) that pauses YouTube videos at configurable inte
 - Automatically pauses videos and presents a quiz at a set interval (e.g. every 5 minutes)
 - Questions are generated from the actual video transcript, covering only what you've watched so far
 - Works out of the box with **Chrome's built-in on-device AI** (Gemini Nano) — no signup, no API key, nothing leaves your machine
-- Also supports bringing your own key for **Google Gemini**, **OpenAI**, **Anthropic Claude**, or **xAI Grok**, if you want a different model
+- Also supports bringing your own key for **Google Gemini**, **OpenAI**, **Anthropic Claude**, **xAI Grok**, or **DeepSeek**, if you want a different model
 - Configurable number of questions per quiz
 - Questions are pre-generated 20 seconds before the quiz is due, so the dialog appears instantly
 - Handles YouTube's SPA navigation — resets cleanly when you switch videos
@@ -55,6 +55,7 @@ Open the extension's options page (click the extension icon → *Options*, or go
 | OpenAI | Paid — requires an OpenAI account |
 | Anthropic Claude | Paid — requires an Anthropic account |
 | xAI Grok | Requires an xAI account |
+| DeepSeek | Paid — requires a DeepSeek platform account |
 
 For cloud providers, use the **Get a free API key →** link in the options page after selecting one.
 
@@ -68,7 +69,7 @@ For cloud providers, use the **Get a free API key →** link in the options page
 | `youtubeQuizContent.ts` | Content script — isolated world | Main runtime: caches transcript, tracks video position, pre-generates questions, pauses video, renders quiz dialog |
 | `background.ts` | Service worker | Receives `REQUEST_QUIZ` messages, reads settings, dispatches to the correct AI provider, returns results |
 | `aiClient.ts` | Service worker | Builds the prompt and delegates to the selected provider module |
-| `providers/` | Service worker | One module per provider (Gemini, OpenAI, Anthropic, Grok, on-device) |
+| `providers/` | Service worker | One module per provider (Gemini, OpenAI, Anthropic, Grok, DeepSeek, on-device) |
 | `options.ts` | Options page | Reads/writes `ExtensionSettings` to `chrome.storage.sync`; drives the on-device availability/download UI |
 | `shared/types.ts` | Shared | `QuizQuestion`, `ExtensionSettings`, and message types |
 | `shared/utils.ts` | Shared | `parseQuizQuestions` (JSON/markdown parser) and `sanitizeNumber` |

@@ -32,7 +32,7 @@ export async function generateQuizQuestions(prompt: string): Promise<QuizQuestio
       );
     }
     throw new Error(
-      "On-device AI isn't available on this browser or device. Open the extension options and switch to a cloud provider (Gemini, OpenAI, Anthropic, or Grok) with your own API key.",
+      "On-device AI isn't available on this browser or device. Open the extension options and switch to a cloud provider (Gemini, OpenAI, Anthropic, Grok, or DeepSeek) with your own API key.",
     );
   }
 

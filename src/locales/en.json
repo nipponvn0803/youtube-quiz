@@ -28,6 +28,7 @@
   "provider_openai": "OpenAI",
   "provider_anthropic": "Anthropic Claude",
   "provider_grok": "xAI Grok",
+  "provider_deepseek": "DeepSeek",
 
   "ondevice_status_label": "On-device AI status",
   "ondevice_checking": "Checking availability…",

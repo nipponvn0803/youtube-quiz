@@ -47,6 +47,7 @@ Transcript text is sent to whichever AI provider you configure:
 | OpenAI | https://openai.com/policies/privacy-policy |
 | Anthropic Claude | https://www.anthropic.com/privacy |
 | xAI Grok | https://x.ai/privacy-policy |
+| DeepSeek | https://cdn.deepseek.com/policies/en-US/deepseek-privacy-policy.html |
 
 Each provider handles the data it receives according to its own privacy policy. Please review the policy of your chosen provider.
 

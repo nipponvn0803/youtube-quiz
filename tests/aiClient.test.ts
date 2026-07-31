@@ -1,17 +1,19 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { buildPrompt, generateQuizQuestions, listModels } from "../src/aiClient";
-import { PROVIDER_GEMINI, PROVIDER_OPENAI, PROVIDER_ANTHROPIC, PROVIDER_GROK, PROVIDER_ONDEVICE } from "../src/shared/types";
+import { PROVIDER_GEMINI, PROVIDER_OPENAI, PROVIDER_ANTHROPIC, PROVIDER_GROK, PROVIDER_DEEPSEEK, PROVIDER_ONDEVICE } from "../src/shared/types";
 
 vi.mock("../src/providers/gemini",    () => ({ generateQuizQuestions: vi.fn(), listModels: vi.fn() }));
 vi.mock("../src/providers/openai",    () => ({ generateQuizQuestions: vi.fn(), listModels: vi.fn() }));
 vi.mock("../src/providers/anthropic", () => ({ generateQuizQuestions: vi.fn(), listModels: vi.fn() }));
 vi.mock("../src/providers/grok",      () => ({ generateQuizQuestions: vi.fn(), listModels: vi.fn() }));
+vi.mock("../src/providers/deepseek",  () => ({ generateQuizQuestions: vi.fn(), listModels: vi.fn() }));
 vi.mock("../src/providers/ondevice",  () => ({ generateQuizQuestions: vi.fn() }));
 
 import * as gemini    from "../src/providers/gemini";
 import * as openai    from "../src/providers/openai";
 import * as anthropic from "../src/providers/anthropic";
 import * as grok      from "../src/providers/grok";
+import * as deepseek  from "../src/providers/deepseek";
 import * as ondevice  from "../src/providers/ondevice";
 
 const TRANSCRIPT = "The video is about photosynthesis.";
@@ -61,6 +63,11 @@ describe("generateQuizQuestions — dispatch", () => {
     expect(grok.generateQuizQuestions).toHaveBeenCalledOnce();
   });
 
+  it("dispatches to deepseek provider", async () => {
+    await generateQuizQuestions(TRANSCRIPT, 3, API_KEY, MODEL, PROVIDER_DEEPSEEK);
+    expect(deepseek.generateQuizQuestions).toHaveBeenCalledOnce();
+  });
+
   it("dispatches to the on-device provider with only the prompt", async () => {
     await generateQuizQuestions(TRANSCRIPT, 3, API_KEY, MODEL, PROVIDER_ONDEVICE);
     expect(ondevice.generateQuizQuestions).toHaveBeenCalledOnce();
@@ -103,6 +110,11 @@ describe("listModels — dispatch", () => {
   it("dispatches to grok", async () => {
     await listModels(PROVIDER_GROK, API_KEY);
     expect(grok.listModels).toHaveBeenCalledWith(API_KEY);
+  });
+
+  it("dispatches to deepseek", async () => {
+    await listModels(PROVIDER_DEEPSEEK, API_KEY);
+    expect(deepseek.listModels).toHaveBeenCalledWith(API_KEY);
   });
 
   it("throws for an unknown provider", async () => {

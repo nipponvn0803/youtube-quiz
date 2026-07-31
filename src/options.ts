@@ -10,6 +10,7 @@ const API_KEY_URLS: Record<AIProvider, string> = {
   openai:    "https://platform.openai.com/api-keys",
   anthropic: "https://console.anthropic.com/settings/keys",
   grok:      "https://console.x.ai/",
+  deepseek:  "https://platform.deepseek.com/api_keys",
   ondevice:  "",
 };
 
