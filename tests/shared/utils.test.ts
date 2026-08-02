@@ -99,4 +99,85 @@ describe("parseQuizQuestions", () => {
   it("throws when questions key is missing", () => {
     expect(() => parseQuizQuestions(JSON.stringify({ data: [] }))).toThrow();
   });
+
+  it("throws when questions is not an array", () => {
+    expect(() => parseQuizQuestions(JSON.stringify({ questions: "nope" }))).toThrow();
+  });
+
+  it("throws when the payload is a bare JSON null", () => {
+    expect(() => parseQuizQuestions("null")).toThrow();
+  });
+});
+
+describe("parseQuizQuestions — model output validation", () => {
+  const valid = { text: "Q1", options: ["a", "b", "c", "d"], correctIndex: 0 };
+
+  function parseOne(question: unknown) {
+    return parseQuizQuestions(JSON.stringify({ questions: [valid, question] }));
+  }
+
+  it("drops a question whose correctIndex is past the end of options", () => {
+    const questions = parseOne({ text: "Q2", options: ["a", "b", "c", "d"], correctIndex: 4 });
+    expect(questions).toHaveLength(1);
+    expect(questions[0].text).toBe("Q1");
+  });
+
+  it("drops a question with a negative correctIndex", () => {
+    expect(parseOne({ text: "Q2", options: ["a", "b"], correctIndex: -1 })).toHaveLength(1);
+  });
+
+  it("drops a question whose correctIndex is not an integer", () => {
+    expect(parseOne({ text: "Q2", options: ["a", "b"], correctIndex: 1.5 })).toHaveLength(1);
+    expect(parseOne({ text: "Q2", options: ["a", "b"], correctIndex: "1" })).toHaveLength(1);
+  });
+
+  it("drops a question with a missing or blank text", () => {
+    expect(parseOne({ options: ["a", "b"], correctIndex: 0 })).toHaveLength(1);
+    expect(parseOne({ text: "   ", options: ["a", "b"], correctIndex: 0 })).toHaveLength(1);
+  });
+
+  it("drops a question whose options are not an array", () => {
+    expect(parseOne({ text: "Q2", options: "a,b,c,d", correctIndex: 0 })).toHaveLength(1);
+  });
+
+  it("drops a question with a non-string option rather than renumbering answers", () => {
+    expect(parseOne({ text: "Q2", options: ["a", 2, "c", "d"], correctIndex: 3 })).toHaveLength(1);
+  });
+
+  it("drops a question with fewer than two options", () => {
+    expect(parseOne({ text: "Q2", options: ["only"], correctIndex: 0 })).toHaveLength(1);
+  });
+
+  it("ignores a non-string explanation instead of passing it through", () => {
+    const [q] = parseQuizQuestions(
+      JSON.stringify({ questions: [{ ...valid, explanation: { note: "x" } }] }),
+    );
+    expect(q.explanation).toBeUndefined();
+  });
+
+  it("renumbers ids contiguously after dropping an invalid question", () => {
+    const payload = {
+      questions: [
+        valid,
+        { text: "bad", options: ["a", "b"], correctIndex: 9 },
+        { text: "Q3", options: ["a", "b"], correctIndex: 1 },
+      ],
+    };
+    const questions = parseQuizQuestions(JSON.stringify(payload));
+    expect(questions.map((q) => q.id)).toEqual(["q-0", "q-1"]);
+    expect(questions.map((q) => q.text)).toEqual(["Q1", "Q3"]);
+  });
+
+  it("throws when every question is invalid", () => {
+    const payload = { questions: [{ text: "bad", options: ["a", "b"], correctIndex: 5 }] };
+    expect(() => parseQuizQuestions(JSON.stringify(payload))).toThrow("no valid questions");
+  });
+
+  it("accepts a well-formed question with the maximum valid correctIndex", () => {
+    const [q] = parseQuizQuestions(
+      JSON.stringify({ questions: [{ text: "Q", options: ["a", "b", "c", "d"], correctIndex: 3 }] }),
+    );
+    expect(q.correctIndex).toBe(3);
+    expect(q.options).toHaveLength(4);
+  });
 });

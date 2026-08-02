@@ -71,7 +71,7 @@ describe("gemini.listModels", () => {
     await expect(listModels(API_KEY)).rejects.toThrow("401");
   });
 
-  it("passes the API key as a query parameter", async () => {
+  it("passes the API key in the x-goog-api-key header, never the URL", async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       json: () => Promise.resolve({ models: [] }),
@@ -79,7 +79,8 @@ describe("gemini.listModels", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     await listModels(API_KEY);
-    const [url] = fetchMock.mock.calls[0] as [string];
-    expect(url).toContain(`key=${API_KEY}`);
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect((init.headers as Record<string, string>)["x-goog-api-key"]).toBe(API_KEY);
+    expect(url).not.toContain(API_KEY);
   });
 });

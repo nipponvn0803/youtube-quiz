@@ -19,7 +19,7 @@ export async function generateQuizQuestions(
   apiKey: string,
   model: string,
 ): Promise<QuizQuestion[]> {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`;
 
   const response = await fetch(url, {
     method: "POST",
@@ -43,8 +43,11 @@ export async function generateQuizQuestions(
 }
 
 export async function listModels(apiKey: string): Promise<string[]> {
+  // The key goes in a header, never the query string — URLs leak into proxy and
+  // server access logs in a way request headers don't.
   const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}&pageSize=100`,
+    "https://generativelanguage.googleapis.com/v1beta/models?pageSize=100",
+    { headers: { "x-goog-api-key": apiKey } },
   );
 
   if (!response.ok) {
