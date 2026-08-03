@@ -52,7 +52,8 @@
   "test_connection_btn": "Kiểm tra kết nối",
   "test_connection_testing": "Đang kiểm tra…",
   "test_connection_ok": "✓ Đã kết nối",
-  "get_api_key_link": "Lấy khóa API miễn phí →",
+  "get_api_key_link": "Lấy khóa API →",
+  "get_api_key_link_free": "Lấy khóa API miễn phí →",
 
   "model_label": "Mô hình",
   "popup_model_desc": "Nhập khóa API để tải các mô hình khả dụng.",

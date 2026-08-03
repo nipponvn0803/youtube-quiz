@@ -334,7 +334,7 @@
           <div class="api-key-actions">
             <button id="test-connection-btn" type="button" class="secondary-btn" data-i18n="test_connection_btn">Test connection</button>
             <span id="test-connection-result"></span>
-            <a id="get-api-key-link" class="link-btn" href="#" target="_blank" rel="noopener" data-i18n="get_api_key_link">Get a free API key →</a>
+            <a id="get-api-key-link" class="link-btn" href="#" target="_blank" rel="noopener" data-i18n="get_api_key_link">Get an API key →</a>
           </div>
         </div>
 
@@ -355,6 +355,15 @@
       <section class="section">
         <h2 data-i18n="quiz_behavior_heading">Quiz behavior</h2>
         <div>
+          <label for="quiz-language" data-i18n="quiz_language_label">Quiz language</label>
+          <p class="field-description" data-i18n="options_quiz_language_desc">
+            The language the questions and answers are written in. On-device AI only supports English, Japanese, Spanish, German, and French.
+          </p>
+          <!-- Options are rendered at runtime from QUIZ_LANGUAGES in options.ts -->
+          <select id="quiz-language"></select>
+        </div>
+
+        <div style="margin-top: 14px">
           <label for="quiz-interval-minutes" data-i18n="quiz_interval_label">Quiz interval</label>
           <p class="field-description" data-i18n="options_quiz_interval_desc">How often to pause and show a quiz, in minutes of watch time.</p>
           <div class="inline">
@@ -367,15 +376,6 @@
           <label for="quiz-num-questions" data-i18n="quiz_num_questions_label">Questions per quiz</label>
           <p class="field-description" data-i18n="options_quiz_num_questions_desc">Number of multiple-choice questions to generate each time.</p>
           <input id="quiz-num-questions" type="number" min="1" max="10" step="1" />
-        </div>
-
-        <div style="margin-top: 14px">
-          <label for="quiz-language" data-i18n="quiz_language_label">Quiz language</label>
-          <p class="field-description" data-i18n="options_quiz_language_desc">
-            The language the questions and answers are written in. On-device AI only supports English, Japanese, Spanish, German, and French.
-          </p>
-          <!-- Options are rendered at runtime from QUIZ_LANGUAGES in options.ts -->
-          <select id="quiz-language"></select>
         </div>
 
       </section>

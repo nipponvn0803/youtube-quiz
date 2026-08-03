@@ -52,7 +52,8 @@
   "test_connection_btn": "Test connection",
   "test_connection_testing": "Testing…",
   "test_connection_ok": "✓ Connected",
-  "get_api_key_link": "Get a free API key →",
+  "get_api_key_link": "Get an API key →",
+  "get_api_key_link_free": "Get a free API key →",
 
   "model_label": "Model",
   "popup_model_desc": "Enter your API key to load available models.",

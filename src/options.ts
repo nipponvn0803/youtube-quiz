@@ -1,5 +1,5 @@
 import { DEFAULT_SETTINGS_KEY } from "./background";
-import { AIProvider, ExtensionSettings, Locale, LOCALE_EN, PROVIDER_ONDEVICE } from "./shared/types";
+import { AIProvider, ExtensionSettings, Locale, LOCALE_EN, PROVIDER_GEMINI, PROVIDER_ONDEVICE } from "./shared/types";
 import { listModels, RECOMMENDED_MODELS } from "./aiClient";
 import { sanitizeNumber } from "./shared/utils";
 import { checkOnDeviceAvailability, downloadOnDeviceModel } from "./shared/ondeviceAvailability";
@@ -226,6 +226,12 @@ async function startOnDeviceDownload(isManualRetry = false): Promise<void> {
 function updateApiKeyLink(provider: AIProvider) {
   const { getApiKeyLink } = getInputs();
   getApiKeyLink.href = API_KEY_URLS[provider];
+  // Gemini is the only provider whose key is free to obtain, so don't promise
+  // "free" for the rest. Swapping the data-i18n key rather than just the text
+  // keeps the right label when applyTranslations re-runs on a locale change.
+  const key = provider === PROVIDER_GEMINI ? "get_api_key_link_free" : "get_api_key_link";
+  getApiKeyLink.dataset.i18n = key;
+  getApiKeyLink.textContent = t(key);
 }
 
 function setStatus(message: string, kind: "ok" | "error" | "neutral" = "neutral") {
