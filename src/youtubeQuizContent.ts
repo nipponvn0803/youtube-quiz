@@ -3,6 +3,7 @@ import { setLocale, t } from "./shared/i18n";
 import {
   TranscriptSegment,
   getTranscriptUpTo,
+  isSignificantJump,
   nextQuizWindow,
   shouldPreGenerate,
 } from "./shared/quizScheduling";
@@ -35,6 +36,10 @@ interface SessionState {
   autoResume: boolean;
   quizShowing: boolean;
   lastKnownTime: number;
+  // Wall-clock time `lastKnownTime` was sampled at. Ticks are skipped while
+  // paused, during ads, and while a quiz is up, so an old sample says nothing
+  // about where playback is now and must not be read as a seek.
+  lastKnownTimeAt: number;
   lastQuizCheckpointSeconds: number;
   timerId: ReturnType<typeof setInterval> | null;
 }
@@ -54,6 +59,7 @@ function freshState(): SessionState {
     autoResume: false,
     quizShowing: false,
     lastKnownTime: 0,
+    lastKnownTimeAt: 0,
     lastQuizCheckpointSeconds: 0,
     timerId: null,
   };
@@ -213,12 +219,44 @@ function isAdPlaying(): boolean {
   );
 }
 
+// Only a sample from roughly the previous tick can be compared against the
+// current position. Anything older survived a pause, an ad, or a quiz, and the
+// difference across that gap isn't a seek.
+const TIME_SAMPLE_MAX_AGE_MS = 2000;
+
+function rememberTime(seconds: number): void {
+  state.lastKnownTime = seconds;
+  state.lastKnownTimeAt = Date.now();
+}
+
+function hasFreshTimeSample(): boolean {
+  return state.lastKnownTimeAt > 0 && Date.now() - state.lastKnownTimeAt <= TIME_SAMPLE_MAX_AGE_MS;
+}
+
 function onTimerTick(): void {
   if (!state.enabled) return;
   const video = getVideo();
   if (!video || video.paused || state.quizShowing || isAdPlaying()) return;
 
   const t = video.currentTime;
+
+  // `currentTime` jumps to the target the moment a seek starts, but `seeked`
+  // only fires once the new position is buffered — seconds later on a long
+  // skip. Without this check the tick gets there first, fires a quiz for a
+  // window the viewer skipped over, and overwrites `lastKnownTime`, so the
+  // seeked handler then sees a delta of ~0 and never reschedules.
+  if (hasFreshTimeSample() && isSignificantJump(state.lastKnownTime, t)) {
+    console.log(
+      "youtube-quiz: jump detected mid-tick (",
+      (t - state.lastKnownTime).toFixed(1),
+      "s), rescheduling quiz",
+    );
+    scheduleNextQuiz(t);
+    removeCountdown();
+    rememberTime(t);
+    return;
+  }
+
   const timeToQuiz = state.nextQuizVideoTime - t;
 
   if (
@@ -249,7 +287,7 @@ function onTimerTick(): void {
     showQuizOrLoading(t);
   }
 
-  state.lastKnownTime = t;
+  rememberTime(t);
 }
 
 async function preGenerateQuiz(): Promise<void> {
@@ -369,16 +407,27 @@ async function generateAndShow(currentTime: number): Promise<void> {
 // Seek detection
 // ---------------------------------------------------------------------------
 
+// Catches what the tick can't: seeks made while paused, and seeks that finish
+// between two ticks. A seek the tick already handled arrives here with
+// `lastKnownTime` already moved, so it's a no-op rather than a double reset.
 function setupSeekDetection(video: HTMLVideoElement): void {
   video.addEventListener("seeked", () => {
+    // Ads share the video element, so their own seeks report a position on the
+    // ad's timeline — recording that would make the return to content look like
+    // a jump on the next tick.
+    if (isAdPlaying()) return;
+
     const t = video.currentTime;
-    const delta = Math.abs(t - state.lastKnownTime);
-    if (delta > 15 && !state.quizShowing) {
-      console.log("youtube-quiz: significant seek (", delta.toFixed(1), "s), rescheduling quiz");
+    if (isSignificantJump(state.lastKnownTime, t) && !state.quizShowing) {
+      console.log(
+        "youtube-quiz: significant seek (",
+        (t - state.lastKnownTime).toFixed(1),
+        "s), rescheduling quiz",
+      );
       scheduleNextQuiz(t);
       removeCountdown();
     }
-    state.lastKnownTime = t;
+    rememberTime(t);
   });
 }
 

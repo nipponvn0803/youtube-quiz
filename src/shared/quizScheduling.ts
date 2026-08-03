@@ -14,6 +14,18 @@ export interface QuizWindow {
   quizVideoTime: number;
 }
 
+// Gap between two video positions that playback alone can't account for, so it
+// has to be a seek. Well above what a single timer tick can cover, even at 2x.
+export const SEEK_RESCHEDULE_THRESHOLD_SECONDS = 15;
+
+export function isSignificantJump(
+  fromVideoTime: number,
+  toVideoTime: number,
+  thresholdSeconds = SEEK_RESCHEDULE_THRESHOLD_SECONDS,
+): boolean {
+  return Math.abs(toVideoTime - fromVideoTime) > thresholdSeconds;
+}
+
 // A reschedule (first play, seek, skip, or a dismissed quiz) always moves both
 // ends: the window covers exactly one interval of playback from `fromVideoTime`.
 export function nextQuizWindow(fromVideoTime: number, intervalSeconds: number): QuizWindow {

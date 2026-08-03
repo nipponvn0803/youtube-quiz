@@ -105,5 +105,5 @@
 
   "badge_title": "YouTube Quiz",
   "badge_pending_desc": "Expand the description and click<br><strong>Show transcript</strong> to enable quizzes",
-  "badge_ready_desc": "Transcript loaded — quizzes ready"
+  "badge_ready_desc": "Transcript loaded"
 }

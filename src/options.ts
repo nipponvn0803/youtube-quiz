@@ -267,20 +267,29 @@ function populateModelSelect(models: string[], selectedModel: string, provider: 
 }
 
 async function fetchAndPopulateModels(provider: AIProvider, apiKey: string, selectedModel: string) {
+  // On-device runs a single built-in model: there is nothing to list, and
+  // listModels() would reject and surface a "Could not fetch models" error over
+  // a model section that isn't even visible for this provider.
+  if (provider === PROVIDER_ONDEVICE) return;
+
   const { fetchModelsBtn, modelSelect } = getInputs();
   fetchModelsBtn.disabled = true;
   fetchModelsBtn.textContent = t("fetch_models_loading");
-  modelSelect.innerHTML = `<option disabled selected>${t("model_placeholder_loading")}</option>`;
+  modelSelect.innerHTML = `<option value="" disabled selected>${t("model_placeholder_loading")}</option>`;
 
   try {
     const models = await listModels(provider, apiKey);
     if (models.length === 0) {
-      modelSelect.innerHTML = `<option disabled selected>${t("model_placeholder_none")}</option>`;
+      modelSelect.innerHTML = `<option value="" disabled selected>${t("model_placeholder_none")}</option>`;
     } else {
       populateModelSelect(models, selectedModel, provider);
+      // populateModelSelect falls back to the recommended model when nothing is
+      // chosen yet — persist that straight away instead of leaving the setting
+      // empty until the user happens to open the dropdown.
+      if (modelSelect.value && modelSelect.value !== selectedModel) void saveSettings();
     }
   } catch (err) {
-    modelSelect.innerHTML = `<option disabled selected>${t("model_placeholder_failed")}</option>`;
+    modelSelect.innerHTML = `<option value="" disabled selected>${t("model_placeholder_failed")}</option>`;
     setStatus(t("status_fetch_models_error", { error: String(err) }), "error");
   } finally {
     fetchModelsBtn.disabled = false;
@@ -318,7 +327,7 @@ async function loadSettings() {
         await fetchAndPopulateModels(provider, apiKey, model);
       } else {
         const { modelSelect } = getInputs();
-        modelSelect.innerHTML = `<option disabled selected>${t("model_placeholder_initial")}</option>`;
+        modelSelect.innerHTML = `<option value="" disabled selected>${t("model_placeholder_initial")}</option>`;
       }
 
       resolve();
@@ -367,8 +376,13 @@ document.addEventListener("DOMContentLoaded", () => {
     const provider = providerSelect.value as AIProvider;
     updateApiKeyLink(provider);
     applyProviderVisibility(provider, quizLanguageSelect.value as QuizLanguage);
-    modelSelect.innerHTML = `<option disabled selected>${t("model_placeholder_click_fetch")}</option>`;
+    modelSelect.innerHTML = `<option value="" disabled selected>${t("model_placeholder_click_fetch")}</option>`;
     void saveSettings();
+    // The old provider's model doesn't exist here. With a key already on file,
+    // reload the list so the new provider lands on its recommended model
+    // instead of saving an empty one until the user clicks Fetch.
+    const apiKey = apiKeyInput.value.trim();
+    if (apiKey) void fetchAndPopulateModels(provider, apiKey, "");
   });
 
   languageSelect.addEventListener("change", () => {

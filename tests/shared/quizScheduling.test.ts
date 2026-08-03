@@ -1,8 +1,10 @@
 import { describe, it, expect } from "vitest";
 import {
   FALLBACK_PREGEN_LEAD_SECONDS,
+  SEEK_RESCHEDULE_THRESHOLD_SECONDS,
   TranscriptSegment,
   getTranscriptUpTo,
+  isSignificantJump,
   nextQuizWindow,
   shouldPreGenerate,
   transcriptReachesSecond,
@@ -36,6 +38,31 @@ describe("nextQuizWindow", () => {
     const afterRewind = nextQuizWindow(120, 300);
 
     expect(afterRewind.checkpointSeconds).toBeLessThan(afterRewind.quizVideoTime);
+  });
+});
+
+describe("isSignificantJump", () => {
+  it("ignores the drift of ordinary playback between ticks", () => {
+    expect(isSignificantJump(300, 300.5)).toBe(false);
+    // Even 2x playback covers only ~1s per 500ms tick
+    expect(isSignificantJump(300, 301)).toBe(false);
+  });
+
+  it("catches a long forward skip", () => {
+    // The reported case: the timer tick sees the new position before `seeked`
+    // fires, so this is the only thing standing between a 3-minute skip and a
+    // quiz firing for the window that was skipped over.
+    expect(isSignificantJump(300, 480)).toBe(true);
+  });
+
+  it("catches a rewind just the same", () => {
+    expect(isSignificantJump(480, 300)).toBe(true);
+  });
+
+  it("treats the threshold itself as ordinary playback", () => {
+    const from = 300;
+    expect(isSignificantJump(from, from + SEEK_RESCHEDULE_THRESHOLD_SECONDS)).toBe(false);
+    expect(isSignificantJump(from, from + SEEK_RESCHEDULE_THRESHOLD_SECONDS + 0.1)).toBe(true);
   });
 });
 
