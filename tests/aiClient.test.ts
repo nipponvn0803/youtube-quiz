@@ -38,6 +38,23 @@ describe("buildPrompt", () => {
     expect(prompt).toContain("correctIndex");
     expect(prompt).toContain("explanation");
   });
+
+  it("defaults to matching the transcript's language", () => {
+    const prompt = buildPrompt(TRANSCRIPT, 3);
+    expect(prompt).toContain("same language as the transcript");
+  });
+
+  it("names the target language when one is chosen", () => {
+    const prompt = buildPrompt(TRANSCRIPT, 3, "fi");
+    // The English name, not the native one — models follow it more reliably
+    expect(prompt).toContain("in Finnish");
+    expect(prompt).not.toContain("same language as the transcript");
+  });
+
+  it("repeats the language instruction so it survives a long transcript", () => {
+    const prompt = buildPrompt(TRANSCRIPT, 3, "ja");
+    expect(prompt.match(/in Japanese/g)).toHaveLength(2);
+  });
 });
 
 describe("generateQuizQuestions — dispatch", () => {
@@ -68,12 +85,26 @@ describe("generateQuizQuestions — dispatch", () => {
     expect(deepseek.generateQuizQuestions).toHaveBeenCalledOnce();
   });
 
-  it("dispatches to the on-device provider with only the prompt", async () => {
-    await generateQuizQuestions(TRANSCRIPT, 3, API_KEY, MODEL, PROVIDER_ONDEVICE);
+  it("dispatches to the on-device provider with the prompt and quiz language", async () => {
+    await generateQuizQuestions(TRANSCRIPT, 3, API_KEY, MODEL, PROVIDER_ONDEVICE, "ja");
     expect(ondevice.generateQuizQuestions).toHaveBeenCalledOnce();
-    const [prompt] = (ondevice.generateQuizQuestions as ReturnType<typeof vi.fn>).mock.calls[0] as [string];
+    const [prompt, quizLanguage] = (ondevice.generateQuizQuestions as ReturnType<typeof vi.fn>).mock.calls[0] as [string, string];
     expect(prompt).toContain(TRANSCRIPT);
-    expect((ondevice.generateQuizQuestions as ReturnType<typeof vi.fn>).mock.calls[0]).toHaveLength(1);
+    // Chrome's Prompt API needs the language as a session param, not just prompt text
+    expect(quizLanguage).toBe("ja");
+    expect((ondevice.generateQuizQuestions as ReturnType<typeof vi.fn>).mock.calls[0]).toHaveLength(2);
+  });
+
+  it("defaults the on-device quiz language to auto", async () => {
+    await generateQuizQuestions(TRANSCRIPT, 3, API_KEY, MODEL, PROVIDER_ONDEVICE);
+    const [, quizLanguage] = (ondevice.generateQuizQuestions as ReturnType<typeof vi.fn>).mock.calls[0] as [string, string];
+    expect(quizLanguage).toBe("auto");
+  });
+
+  it("puts the chosen language into the prompt for cloud providers", async () => {
+    await generateQuizQuestions(TRANSCRIPT, 3, API_KEY, MODEL, PROVIDER_GEMINI, "vi");
+    const [prompt] = (gemini.generateQuizQuestions as ReturnType<typeof vi.fn>).mock.calls[0] as [string];
+    expect(prompt).toContain("in Vietnamese");
   });
 
   it("passes the built prompt, apiKey, and model to the provider", async () => {

@@ -1,3 +1,5 @@
+import type { QuizLanguage } from "./quizLanguages";
+
 export type QuizOption = {
   text: string;
 };
@@ -56,5 +58,6 @@ export type ExtensionSettings = {
   quizIntervalMinutes: number;
   quizNumQuestions: number;
   enabled: boolean;
-  language: Locale;
+  language: Locale;      // UI chrome only
+  quizLanguage: QuizLanguage;  // language the generated quiz is written in
 };

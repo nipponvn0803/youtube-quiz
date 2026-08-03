@@ -4,6 +4,7 @@ import { listModels, RECOMMENDED_MODELS } from "./aiClient";
 import { sanitizeNumber } from "./shared/utils";
 import { checkOnDeviceAvailability, downloadOnDeviceModel } from "./shared/ondeviceAvailability";
 import { applyTranslations, setLocale, t } from "./shared/i18n";
+import { ONDEVICE_LANGUAGES, QUIZ_LANGUAGES, QUIZ_LANGUAGE_AUTO, QuizLanguage, isOnDeviceSupported } from "./shared/quizLanguages";
 
 const API_KEY_URLS: Record<AIProvider, string> = {
   gemini:    "https://aistudio.google.com/apikey",
@@ -22,6 +23,7 @@ const DEFAULT_SETTINGS: ExtensionSettings = {
   quizNumQuestions: 3,
   enabled: true,
   language: LOCALE_EN,
+  quizLanguage: QUIZ_LANGUAGE_AUTO,
 };
 
 let downloadPromise: Promise<void> | null = null;
@@ -67,16 +69,55 @@ function getInputs() {
     ondeviceUnavailableBanner: $("ondevice-unavailable-banner") as HTMLDivElement,
     switchToCloudBtn:     $("switch-to-cloud-btn")           as HTMLButtonElement,
     languageSelect:       $("ui-language")                  as HTMLSelectElement,
+    quizLanguageSelect:   $("quiz-language")                as HTMLSelectElement,
   };
 }
 
-function applyProviderVisibility(provider: AIProvider) {
+// Rendered at runtime rather than hard-coded in the two HTML files: native
+// language names need no translation, so only the "Auto" entry and the
+// unsupported suffix come from the locale catalog.
+function populateQuizLanguageSelect(provider: AIProvider, selected: QuizLanguage) {
+  const { quizLanguageSelect } = getInputs();
+  const isOnDevice = provider === PROVIDER_ONDEVICE;
+
+  quizLanguageSelect.innerHTML = "";
+
+  const auto = document.createElement("option");
+  auto.value = QUIZ_LANGUAGE_AUTO;
+  auto.textContent = t("quiz_language_auto");
+  quizLanguageSelect.appendChild(auto);
+
+  for (const { code, nativeName } of QUIZ_LANGUAGES) {
+    const opt = document.createElement("option");
+    opt.value = code;
+    // Disabled rather than hidden — the user should see *why* a language they
+    // expect isn't selectable, instead of it silently vanishing.
+    opt.disabled = isOnDevice && !isOnDeviceSupported(code);
+    opt.textContent = opt.disabled
+      ? `${nativeName}${t("quiz_language_unsupported_suffix")}`
+      : nativeName;
+    quizLanguageSelect.appendChild(opt);
+  }
+
+  // A saved language can become unselectable by switching to on-device — fall
+  // back to Auto so the stored setting matches what's on screen.
+  const usable = isOnDevice ? isOnDeviceSupported(selected) : true;
+  quizLanguageSelect.value = usable ? selected : QUIZ_LANGUAGE_AUTO;
+  return usable;
+}
+
+function applyProviderVisibility(provider: AIProvider, quizLanguage: QuizLanguage) {
   const { apiKeySection, modelSection, ondeviceStatus, ondeviceUnavailableBanner } = getInputs();
   const isOnDevice = provider === PROVIDER_ONDEVICE;
 
   apiKeySection.style.display = isOnDevice ? "none" : "";
   modelSection.style.display = isOnDevice ? "none" : "";
   ondeviceStatus.style.display = isOnDevice ? "" : "none";
+
+  // Persist the correction when the saved language can't survive this provider,
+  // so storage doesn't keep a value the dropdown no longer shows.
+  const stillUsable = populateQuizLanguageSelect(provider, quizLanguage);
+  if (!stillUsable) void saveSettings();
 
   if (!isOnDevice) {
     ondeviceUnavailableBanner.style.display = "none";
@@ -85,9 +126,20 @@ function applyProviderVisibility(provider: AIProvider) {
   }
 }
 
+// Availability and the model download are both per output language, so both
+// need to reflect whatever the quiz-language dropdown currently shows —
+// otherwise picking Japanese would report "Ready" off the back of English.
+function selectedOnDeviceLanguages(): readonly string[] {
+  const { quizLanguageSelect } = getInputs();
+  const selected = quizLanguageSelect.value as QuizLanguage;
+  return selected === QUIZ_LANGUAGE_AUTO || !isOnDeviceSupported(selected)
+    ? ONDEVICE_LANGUAGES
+    : [selected];
+}
+
 async function refreshOnDeviceStatus() {
   const { ondeviceStatusText, ondeviceDownloadHint, ondeviceProgressRow, ondeviceDownloadBtn, ondeviceUnavailableBanner } = getInputs();
-  const availability = await checkOnDeviceAvailability();
+  const availability = await checkOnDeviceAvailability(selectedOnDeviceLanguages());
 
   if (availability === "available") {
     ondeviceStatusText.textContent = t("ondevice_ready");
@@ -147,7 +199,7 @@ async function startOnDeviceDownload(isManualRetry = false): Promise<void> {
     try {
       await downloadOnDeviceModel((fraction) => {
         getInputs().ondeviceProgress.value = fraction * 100;
-      });
+      }, selectedOnDeviceLanguages());
       downloadRetryCount = 0;
       await refreshOnDeviceStatus();
     } catch (err) {
@@ -246,6 +298,7 @@ async function loadSettings() {
       const apiKey = s.apiKey ?? "";
       const model = s.model || DEFAULT_SETTINGS.model;
       const language: Locale = s.language ?? DEFAULT_SETTINGS.language;
+      const quizLanguage: QuizLanguage = s.quizLanguage ?? DEFAULT_SETTINGS.quizLanguage;
 
       setLocale(language);
       document.documentElement.lang = language;
@@ -255,7 +308,7 @@ async function loadSettings() {
       providerSelect.value = provider;
       apiKeyInput.value = apiKey;
       updateApiKeyLink(provider);
-      applyProviderVisibility(provider);
+      applyProviderVisibility(provider, quizLanguage);
       if (provider !== PROVIDER_ONDEVICE && !apiKey) getInputs().onboardingBanner.style.display = "block";
       quizIntervalInput.value = String(s.quizIntervalMinutes || DEFAULT_SETTINGS.quizIntervalMinutes);
       quizNumQuestionsInput.value = String(s.quizNumQuestions || DEFAULT_SETTINGS.quizNumQuestions);
@@ -274,7 +327,7 @@ async function loadSettings() {
 }
 
 async function saveSettings() {
-  const { providerSelect, apiKeyInput, modelSelect, quizIntervalInput, quizNumQuestionsInput, enabledToggle, languageSelect } = getInputs();
+  const { providerSelect, apiKeyInput, modelSelect, quizIntervalInput, quizNumQuestionsInput, enabledToggle, languageSelect, quizLanguageSelect } = getInputs();
 
   setStatus(t("status_saving"));
 
@@ -286,6 +339,7 @@ async function saveSettings() {
     quizNumQuestions: sanitizeNumber(quizNumQuestionsInput.value, DEFAULT_SETTINGS.quizNumQuestions, 1, 10),
     enabled: enabledToggle.checked,
     language: languageSelect.value as Locale,
+    quizLanguage: (quizLanguageSelect.value || DEFAULT_SETTINGS.quizLanguage) as QuizLanguage,
   };
 
   if (settings.apiKey) getInputs().onboardingBanner.style.display = "none";
@@ -305,14 +359,14 @@ document.addEventListener("DOMContentLoaded", () => {
     setStatus(t("status_load_error"), "error");
   });
 
-  const { providerSelect, apiKeyInput, testConnectionBtn, fetchModelsBtn, modelSelect, quizIntervalInput, quizNumQuestionsInput, enabledToggle, ondeviceDownloadBtn, switchToCloudBtn, languageSelect } = getInputs();
+  const { providerSelect, apiKeyInput, testConnectionBtn, fetchModelsBtn, modelSelect, quizIntervalInput, quizNumQuestionsInput, enabledToggle, ondeviceDownloadBtn, switchToCloudBtn, languageSelect, quizLanguageSelect } = getInputs();
 
   const debouncedSave = debounce(() => { void saveSettings(); }, 600);
 
   providerSelect.addEventListener("change", () => {
     const provider = providerSelect.value as AIProvider;
     updateApiKeyLink(provider);
-    applyProviderVisibility(provider);
+    applyProviderVisibility(provider, quizLanguageSelect.value as QuizLanguage);
     modelSelect.innerHTML = `<option disabled selected>${t("model_placeholder_click_fetch")}</option>`;
     void saveSettings();
   });
@@ -322,7 +376,16 @@ document.addEventListener("DOMContentLoaded", () => {
     setLocale(locale);
     document.documentElement.lang = locale;
     applyTranslations();
+    // "Auto" and the unsupported suffix are translated strings, so the quiz
+    // language list has to be re-rendered when the UI locale changes.
+    populateQuizLanguageSelect(providerSelect.value as AIProvider, quizLanguageSelect.value as QuizLanguage);
     void refreshOnDeviceStatus();
+    void saveSettings();
+  });
+
+  quizLanguageSelect.addEventListener("change", () => {
+    // Availability is per language — re-check so the status panel matches.
+    if (providerSelect.value === PROVIDER_ONDEVICE) void refreshOnDeviceStatus();
     void saveSettings();
   });
 
@@ -336,7 +399,7 @@ document.addEventListener("DOMContentLoaded", () => {
   switchToCloudBtn.addEventListener("click", () => {
     providerSelect.value = "gemini";
     updateApiKeyLink("gemini");
-    applyProviderVisibility("gemini");
+    applyProviderVisibility("gemini", quizLanguageSelect.value as QuizLanguage);
     void saveSettings();
   });
 

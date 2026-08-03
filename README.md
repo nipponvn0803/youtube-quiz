@@ -45,6 +45,7 @@ Open the extension's options page (click the extension icon → *Options*, or go
 | Model | Only shown for cloud providers; choose from models available for your API key |
 | Quiz interval | How often to pause and quiz (in minutes of watch time) |
 | Questions per quiz | Number of multiple-choice questions each time (1–10) |
+| Quiz language | Language the questions and answers are written in. Defaults to **Auto**, which follows the transcript's language. On-device AI only supports English, Japanese, Spanish, German, and French — the rest are shown greyed out when that provider is selected. |
 
 ### Provider options
 
@@ -72,6 +73,7 @@ For cloud providers, use the **Get a free API key →** link in the options page
 | `providers/` | Service worker | One module per provider (Gemini, OpenAI, Anthropic, Grok, DeepSeek, on-device) |
 | `options.ts` | Options page | Reads/writes `ExtensionSettings` to `chrome.storage.sync`; drives the on-device availability/download UI |
 | `shared/types.ts` | Shared | `QuizQuestion`, `ExtensionSettings`, and message types |
+| `shared/quizLanguages.ts` | Shared | Selectable quiz languages, plus the subset Chrome's Prompt API supports |
 | `shared/utils.ts` | Shared | `parseQuizQuestions` (JSON/markdown parser) and `sanitizeNumber` |
 | `shared/ondeviceAvailability.ts` | Shared | Feature-detects and checks Chrome's `LanguageModel` API, and triggers the on-device model download |
 | `shared/ondeviceTypes.d.ts` | Shared | Ambient type declarations for the `LanguageModel` global (Chrome's Prompt API) |

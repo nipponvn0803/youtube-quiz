@@ -1,4 +1,5 @@
 import { AIProvider, ExtensionSettings, PROVIDER_ONDEVICE, QuizRequestMessage, QuizResponseMessage } from "./shared/types";
+import { QuizLanguage, QUIZ_LANGUAGE_AUTO } from "./shared/quizLanguages";
 import { generateQuizQuestions } from "./aiClient";
 
 export const DEFAULT_SETTINGS_KEY = "settings";
@@ -39,10 +40,11 @@ async function handleQuizRequest(
   const provider: AIProvider = settings?.provider ?? DEFAULT_PROVIDER;
   const apiKey = settings?.apiKey ?? "";
   const model = settings?.model ?? DEFAULT_MODEL;
-  console.log("youtube-quiz: provider =", provider, "| model =", model, "| apiKey set =", apiKey.length > 0);
+  const quizLanguage: QuizLanguage = settings?.quizLanguage ?? QUIZ_LANGUAGE_AUTO;
+  console.log("youtube-quiz: provider =", provider, "| model =", model, "| apiKey set =", apiKey.length > 0, "| quizLanguage =", quizLanguage);
 
   try {
-    const questions = await generateQuizQuestions(req.transcript, req.numQuestions, apiKey, model, provider);
+    const questions = await generateQuizQuestions(req.transcript, req.numQuestions, apiKey, model, provider, quizLanguage);
     console.log("youtube-quiz: generated", questions.length, "question(s)");
     sendResponse({ type: "QUIZ_SUCCESS", questions });
   } catch (err) {

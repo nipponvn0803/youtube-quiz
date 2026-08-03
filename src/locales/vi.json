@@ -75,6 +75,11 @@
   "quiz_num_questions_label": "Số câu hỏi mỗi lần",
   "popup_quiz_num_questions_desc": "Số câu hỏi trắc nghiệm cần tạo.",
   "options_quiz_num_questions_desc": "Số câu hỏi trắc nghiệm cần tạo mỗi lần.",
+  "quiz_language_label": "Ngôn ngữ câu hỏi",
+  "popup_quiz_language_desc": "Ngôn ngữ dùng để viết câu hỏi và đáp án.",
+  "options_quiz_language_desc": "Ngôn ngữ dùng để viết câu hỏi và đáp án. AI trên thiết bị chỉ hỗ trợ tiếng Anh, tiếng Nhật, tiếng Tây Ban Nha, tiếng Đức và tiếng Pháp.",
+  "quiz_language_auto": "Tự động — theo ngôn ngữ của video",
+  "quiz_language_unsupported_suffix": " — không hỗ trợ trên thiết bị",
 
   "status_saving": "Đang lưu…",
   "status_saved": "Đã lưu thiết lập.",

@@ -75,6 +75,11 @@
   "quiz_num_questions_label": "Questions per quiz",
   "popup_quiz_num_questions_desc": "Number of multiple-choice questions to generate.",
   "options_quiz_num_questions_desc": "Number of multiple-choice questions to generate each time.",
+  "quiz_language_label": "Quiz language",
+  "popup_quiz_language_desc": "The language questions and answers are written in.",
+  "options_quiz_language_desc": "The language the questions and answers are written in. On-device AI only supports English, Japanese, Spanish, German, and French.",
+  "quiz_language_auto": "Auto — match the video's language",
+  "quiz_language_unsupported_suffix": " — not supported on-device",
 
   "status_saving": "Saving…",
   "status_saved": "Settings saved.",

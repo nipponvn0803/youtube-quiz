@@ -359,6 +359,13 @@
         <p class="field-description" data-i18n="popup_quiz_num_questions_desc">Number of multiple-choice questions to generate.</p>
         <input id="quiz-num-questions" type="number" min="1" max="10" step="1" />
       </div>
+
+      <div class="field">
+        <label for="quiz-language" data-i18n="quiz_language_label">Quiz language</label>
+        <p class="field-description" data-i18n="popup_quiz_language_desc">The language questions and answers are written in.</p>
+        <!-- Options are rendered at runtime from QUIZ_LANGUAGES in options.ts -->
+        <select id="quiz-language"></select>
+      </div>
     </section>
 
     <p id="status" class="status"></p>
